@@ -8,6 +8,11 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 transformers = "^4.38.2"
+torch = "^2.2.1"
+pandas = "^2.2.1"
+numpy = "^1.26.4"
+datasets = "^2.18.0"
+tokenizers = "^0.15.2"
 
 
 [build-system]
