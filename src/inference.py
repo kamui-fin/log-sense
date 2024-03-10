@@ -35,13 +35,12 @@ def calculate_abnormal_scores(logs: List[str]):
     List of anomaly loss and probability score pairs for every log seq
     """
 
-    # TODO: refactor and comment
-
-    K = 5
-    scores = []
+    K = 5 # Top-k
+    scores = [] # Output
     for log in logs:
         log = regex_clean(log)
 
+        # Optimizing duplicate log sequence
         if log not in score_cache:
             log_tokens = tokenizer([log], return_tensors='pt')
             input_ids = log_tokens['input_ids']
@@ -75,17 +74,20 @@ def calculate_abnormal_scores(logs: List[str]):
                 output = model(input_ids=batch_tokens[current_batch], attention_mask=attention_mask, token_type_ids=token_type_ids, labels = curr_label_batch)
                 logits = output.logits
 
-                # reduction=none to avoid agg loss, we want the loss per-sample
+                # Reduction=none to avoid agg loss, we want the loss per-sample
                 loss_function = CrossEntropyLoss(ignore_index=-100, reduction='none')
+                # Loss between the true masked word and predicteed word
                 loss = loss_function(logits.view(-1, tokenizer.vocab_size), curr_label_batch.view(-1)).view(logits.size(0), -1).sum(dim=1)
 
                 probabilities = F.softmax(logits, dim = -1)
                 values, indices = torch.max(curr_label_batch, dim = 1)
+                # "Confidence" of guessing the true word
                 prob = probabilities[torch.arange(indices.size(0)), indices, values]
 
                 all_probs.extend(prob.tolist())
                 all_losses.extend(loss.tolist())
 
+            # Aggregate and score this sequence
             abnormal_loss = top_k(all_losses, K)
             abnormal_prob = top_k(all_probs, K, 'min')
             score_cache[log] = (abnormal_loss, abnormal_prob)
@@ -106,8 +108,10 @@ true_labels['Label'] = (true_labels['Label'] == 'Anomaly').astype('int64')
 test_logs = raw_hdfs_logs[5000:5500] # Random chunk to test out inference
 scores = np.array(calculate_abnormal_scores(test_logs))
 
-# Place into dataframe to examine results
+# Collecting results into df to examine results
 eval_df = pd.DataFrame()
+# For this datset, the block ids are anomalous, rather than the logs. 
+# So if one log proves to be anomalous the block belonging to that log becomes anomalous.
 eval_df['block_id'] = [re.findall('blk_-?\d+', l)[0] for l in test_logs]
 eval_df['seq'] = test_logs
 eval_df['loss'] = scores[:, 0]

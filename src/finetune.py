@@ -1,10 +1,10 @@
 from datasets import load_from_disk
 from transformers import AutoTokenizer, AutoConfig, AutoModelForMaskedLM, DataCollatorForLanguageModeling, Trainer, TrainingArguments
 
-from src.config import BASE_MODEL
+from src.config import BASE_MODEL, MODEL_CHECKPOINTS, TRAIN_SET_OUTPUT, TEST_SET_OUTPUT
 
-train_dataset = load_from_disk('data/torch_dataset/train')
-test_dataset = load_from_disk('data/torch_dataset/test')
+train_dataset = load_from_disk(TRAIN_SET_OUTPUT)
+test_dataset = load_from_disk(TEST_SET_OUTPUT)
 
 # If pre-training from scratch only:
 # config = BertConfig(vocab_size=tokenizer.vocab_size, max_position_embeddings=MAX_LENGTH)
@@ -12,11 +12,11 @@ test_dataset = load_from_disk('data/torch_dataset/test')
 
 config = AutoConfig.from_pretrained(BASE_MODEL)
 model = AutoModelForMaskedLM.from_config(config)
-tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
 data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm_probability=0.2)
 
 training_args = TrainingArguments(
-    output_dir='data/hdfs_bert',
+    output_dir=MODEL_CHECKPOINTS,
     evaluation_strategy="epoch",
     learning_rate=2e-5,
     weight_decay=0.01,

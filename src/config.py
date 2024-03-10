@@ -9,6 +9,10 @@ HDFS_CLEANED_PATH = DATA_DIR / "hdfsv1_regex.log"
 MODEL_CHECKPOINTS = DATA_DIR / "hdfs_bert"
 LAST_CHECKPOINT = "checkpoint-99"
 
+TRAIN_SET_OUTPUT = DATA_DIR / 'torch_dataset' / 'train'
+TEST_SET_OUTPUT = DATA_DIR / 'torch_dataset' / 'test'
+
+CONTEXT_LENGTH = 128
+
 # Only for pre-training
 # TOKENIZER_PATH = f'data/hdfs_tokenized'
-# MAX_LENGTH = 128
