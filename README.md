@@ -13,11 +13,11 @@ We selected 3 models as the focus of our study:
 2. LogGPT - GPT based w/ reinforcement learning [2]
 3. RAPID - Retrieval-oriented (train-free) [3]
 
-While the benchmarks provided in the original papers are quite convincing of their performance, we wanted to apply them under a less ideal, but highly real-world setting to fully test their capabilities. Overall, we wanted to gain a better understanding of how they could be integrated into existing production systems.
+While the benchmarks provided in the original papers are quite convincing of their performance, we wanted to apply them under a less ideal, but highly realistic setting to fully test their capabilities. Overall, we wanted to gain a better understanding of how they could be integrated into existing production systems.
 
 ## Applications within distributed systems
 
-With some inspiration from the HDFS [6] dataset, we hypothesize that similar performance could be achieved for similar distributed services by leveraging *session window grouping* [5]. This involves grouping logs based on session identifiers, such as the node or block. 
+With some inspiration from the HDFS [6] dataset, we hypothesize that similar performance could be achieved for similar distributed services by leveraging *session window grouping* [5]. This involves grouping logs based on session identifiers, such as node or block. 
 
 Following, we will construct a case study by demonstrating the application of the models real-time for a system of microservices and document relevant metrics such as inference times.
 
@@ -30,7 +30,7 @@ An example ensembled prediction process we imagine could work:
 1. Initial fast detection with RAPID [3]
 2. Update confidence of detection results slowly by running an ensemble of LogGPT [2] and LAnoBERT [1]
 
-This attempts to reach a consensus between real-time speed and accuracy. 
+This attempts to reach a consensus between accuracy and real-time speed. 
 
 ## Empirical evaluation following Le & Zhang
 
@@ -40,9 +40,9 @@ Le & Zhang's paper [5] conducted an intriguing and comprehensive analyis of the 
 - Performance under X% of mislabeled logs
 
 The paper's findings reported several pending challenges when adapting to real-world systems:
-1. Limited labeled data 
+1. Available labeled data is limited
 2. Anomalies should be predicted as early as possible
-3. Evolving logs following evolving software
+3. Logs are evolving alongside software
 4. Log parsing errors severely impact detection performance
 
 With inspiration from the paper, we attempt to conduct a similar investigation on the three mentioned recent models by benchmarking under the experimental settings, incorporating the paper's *specificity* metric as well.
