@@ -57,6 +57,10 @@ A challenge that remains is that these semi-supervised models must only be train
 
 How well does pre-training on diverse log data generalize to different data? 
 
+## Long Term
+
+In the future, this study could introduce a brand new metric to test the viability of log anomaly detection systems in an online, distributed environment.
+
 # Citations
 
 [1] Lee, Y., Kim, J., and Kang, P., “LAnoBERT: System Log Anomaly Detection based on BERT Masked Language Model”, <i>arXiv e-prints</i>, 2021. doi:10.48550/arXiv.2111.09564.
