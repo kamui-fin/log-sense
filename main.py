@@ -4,14 +4,16 @@ from src.rapid.model import Rapid, evaluate
 
 # Example usage with hdfs dataset
 
-log_file = Path("data/hdfs/hdfsv1.log")
+log_file = Path("data/hdfs/hdfsv1_head.log")
 labels_file = Path("data/hdfs/anomaly_label.csv")
+cache_file = Path('data/hdfs/cache.csv')
 
-dataset = Hdfs(log_file, labels_file)
-train_X, test_X, test_y = dataset.train_test_split()
+dataset = Hdfs(log_file, labels_file, cache_file)
+train_X, test_X, test_y = dataset.train_test_split(100)
 
-model = Rapid()
+output_dir = Path('output/rapid')
+model = Rapid(output_dir)
 model.fit(train_X)
 
-pred = model.predict(test_y)
+pred = model.predict(test_X)
 evaluate(test_y, pred)

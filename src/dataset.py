@@ -7,10 +7,17 @@ import datetime
 # NOTE: Regex taken from RAPID paper original implementation
 
 class Hdfs:
-    def __init__(self, file_path: Path, labels_path: Path):
-        self.data = file_path.read_text().splitlines()
-        self.df = self.clean_parse_dataset()
-        self.add_labels(labels_path)
+    def __init__(self, file_path: Path, labels_path: Path, output_path: Path):
+        if output_path.exists():
+            self.load(output_path)
+        else:
+            self.data = file_path.read_text().splitlines()
+            self.df = self.clean_parse_dataset()
+            self.add_labels(labels_path)
+            self.save(output_path)
+        
+    def load(self, path):
+        self.df = pd.read_csv(path, compression='gzip', index_col=0)
 
     def regex_sub_line(self, line: str):
         """
@@ -35,7 +42,10 @@ class Hdfs:
             block_id, line = self.regex_sub_line(line)
             block_ids.append(block_id)
             cleaned_logs.append(line)
-        return pd.DataFrame({'line': cleaned_logs, 'block_id': block_ids})
+        df = pd.DataFrame({'line': cleaned_logs, 'block_id': block_ids})
+        df = df.groupby(by='block_id')['line'].unique()
+        df = df.apply(lambda x: ' '.join(x))
+        return df
 
     def add_labels(self, labels_path: Path):
         true_labels = pd.read_csv(labels_path)
@@ -51,8 +61,6 @@ class Hdfs:
     def train_test_split(self, train_size = 446_578):
         df = self.df
 
-        df = df.groupby(by='block_id')['line'].unique()
-        df = df.apply(lambda x: ' '.join(x))
         train = df[df['is_anomaly'] == 0].iloc[:train_size]
         train_X = train['line']
 
