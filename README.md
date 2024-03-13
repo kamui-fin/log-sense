@@ -57,6 +57,8 @@ A challenge that remains is that these semi-supervised models must only be train
 
 How well does pre-training on diverse log data generalize to different data? 
 
+As RAPID and LAnoBERT rely on regex parsing to un-parameterize the log sequences, we wondered if simply introducing a more generic parser would offset the costs of compiling new regexes for each dataset. In general, we can't assume formats such as timestamps won't evolve over time.
+
 ## Long Term
 
 In the future, this study could introduce a brand new metric to test the viability of log anomaly detection systems in an online, distributed environment.
