@@ -1,7 +1,7 @@
 from datasets import load_from_disk
 from transformers import AutoTokenizer, AutoConfig, AutoModelForMaskedLM, DataCollatorForLanguageModeling, Trainer, TrainingArguments
 
-from src.config import BASE_MODEL, MODEL_CHECKPOINTS, TRAIN_SET_OUTPUT, TEST_SET_OUTPUT
+from config import BASE_MODEL, MODEL_CHECKPOINTS, TRAIN_SET_OUTPUT, TEST_SET_OUTPUT
 
 train_dataset = load_from_disk(TRAIN_SET_OUTPUT)
 test_dataset = load_from_disk(TEST_SET_OUTPUT)

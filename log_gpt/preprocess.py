@@ -8,7 +8,7 @@ from drain3.file_persistence import FilePersistence
 from drain3.template_miner import TemplateMiner, TemplateMinerConfig
 import torch
 import torch.nn.functional as F
-from src.log_gpt.config import *
+from log_gpt.config import *
 
 import sys
 

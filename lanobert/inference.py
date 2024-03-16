@@ -8,8 +8,8 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 from transformers import BertForMaskedLM, AutoTokenizer
 
-from src.config import HDFS_UNCLEANED_PATH, LAST_CHECKPOINT, MODEL_CHECKPOINTS
-from src.preprocess import regex_clean
+from config import HDFS_UNCLEANED_PATH, LAST_CHECKPOINT, MODEL_CHECKPOINTS
+from preprocess import regex_clean
 
 tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
 model = BertForMaskedLM.from_pretrained(MODEL_CHECKPOINTS / LAST_CHECKPOINT)

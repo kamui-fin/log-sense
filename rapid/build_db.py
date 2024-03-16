@@ -10,7 +10,7 @@ from sklearn.neighbors import NearestNeighbors
 from collections.abc import Mapping
 import pickle
 
-from src.rapid.utils import yield_batches
+from rapid.utils import yield_batches
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 model = BertModel.from_pretrained("bert-base-uncased").to('cuda:0')

@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 from sklearn.metrics import classification_report
 
-from src.log_gpt.preprocess import LogDataset
+from log_gpt.preprocess import LogDataset
 
 
 # # Top K prediction

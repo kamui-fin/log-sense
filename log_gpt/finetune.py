@@ -2,8 +2,8 @@ import torch
 from torch.distributions import Categorical
 from math import floor
 from tqdm import tqdm
-from src.log_gpt.config import *
-from src.log_gpt.pretrain import save_model
+from log_gpt.config import *
+from log_gpt.pretrain import save_model
 
 
 def compute_loss(input_ids, logits, t):

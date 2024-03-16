@@ -2,8 +2,8 @@ import torch
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW
 from tqdm import tqdm
 
-from src.log_gpt.preprocess import LogDataset
-from src.log_gpt.config import *
+from log_gpt.preprocess import LogDataset
+from log_gpt.config import *
 
 def get_data_loaders(df):
     normal_df = df[df["is_anomaly"] == 0]

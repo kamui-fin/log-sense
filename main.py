@@ -1,6 +1,6 @@
 from pathlib import Path
-from src.dataset import Hdfs
-from src.rapid.model import Rapid, evaluate
+from dataset import Hdfs
+from rapid.model import Rapid, evaluate
 
 # Example usage with hdfs dataset
 
