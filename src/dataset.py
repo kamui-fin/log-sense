@@ -7,10 +7,11 @@ import datetime
 # NOTE: Regex taken from RAPID paper original implementation
 
 class Hdfs:
-    def __init__(self, file_path: Path, labels_path: Path, output_path: Path):
+    def __init__(self, file_path: Path, labels_path: Path, output_path: Path, drain_mode=True):
         if output_path.exists():
             self.load(output_path)
         else:
+            self.drain_mode = drain_mode
             self.data = file_path.read_text().splitlines()
             self.df = self.clean_parse_dataset()
             self.add_labels(labels_path)
@@ -29,10 +30,10 @@ class Hdfs:
         ip_regex = re.compile("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d{1,5})?")
         num_regex = re.compile("\d*\d")
 
-        line = re.sub(blk_regex, 'BLK', line)
-        line = re.sub(ip_regex, 'IP', line)
-        line = re.sub(num_regex, 'NUM', line)
-
+        if not self.drain_mode:
+            line = re.sub(blk_regex, 'BLK', line)
+            line = re.sub(ip_regex, 'IP', line)
+            line = re.sub(num_regex, 'NUM', line)
         return block_id, line
 
     def clean_parse_dataset(self):
@@ -43,14 +44,15 @@ class Hdfs:
             block_ids.append(block_id)
             cleaned_logs.append(line)
         df = pd.DataFrame({'line': cleaned_logs, 'block_id': block_ids})
-        df = df.groupby(by='block_id')['line'].unique()
-        df = df.apply(lambda x: ' '.join(x))
+        if not self.drain_mode:
+            df = df.groupby(by='block_id')['line'].unique()
+            df = df.apply(lambda x: ' '.join(x))
         return df
 
     def add_labels(self, labels_path: Path):
         true_labels = pd.read_csv(labels_path)
         true_labels['Label'] = (true_labels['Label'] == 'Anomaly').astype('int64')
-        self.df = pd.merge(self.df, true_labels, left_on='block_id', right_on='BlockId').drop(columns=['BlockId']).rename(columns={'Label': 'is_anomaly'})
+        self.df = pd.merge(self.df, true_labels, left_on='block_id', right_on='BlockId').rename(columns={'Label': 'is_anomaly'})
 
     def save(self, output_path):
         """

@@ -1,3 +1,7 @@
 data/
 output/
 __pycache__/
+
+drain3.ini
+drain3_state.bin
+ssh.log
