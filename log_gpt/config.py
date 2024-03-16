@@ -21,3 +21,9 @@ loss_improv_epsilon = 0.01
 bos_token_id = 0
 eos_token_id = 1
 pad_token_id = 2
+
+num_beams = 10
+cut = 0.2
+
+train_samples = 5000
+train_val_ratio = 0.9

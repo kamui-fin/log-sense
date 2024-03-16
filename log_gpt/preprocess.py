@@ -27,7 +27,7 @@ class LogDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        input_ids = torch.tensor(self.data.iloc[idx])
+        input_ids = torch.cat(torch.tensor(bos_token_id), torch.tensor(self.data.iloc[idx]), torch.tensor(eos_token_id))
 
         if len(input_ids) > context_size:
             input_ids = torch.cat(
@@ -59,14 +59,16 @@ def drain_cluster(log_lines):
     sorted_clusters = sorted(
         template_miner.drain.clusters, key=lambda it: it.size, reverse=True
     )
+    print('Top 5 clusters:')
     for cluster in sorted_clusters[:5]:
         print(cluster)
 
-    vocab_size = num_clusters + 3
-    print(f"Vocab size: {vocab_size}")
+def load_hdfs(hdfs_data_dir, cache_file: Path):
+    if cache_file.exists():
+        df = pd.read_csv(cache_file, compression="gzip")
+        df["line"] = df["line"].apply(ast.literal_eval)
+        return df
 
-
-def load_hdfs(hdfs_data_dir):
     hdfs = Hdfs(
         hdfs_data_dir / "hdfsv1.log",
         hdfs_data_dir / "anomaly_label.csv",
@@ -74,6 +76,7 @@ def load_hdfs(hdfs_data_dir):
         True,
     )
     df = hdfs.df.drop(columns=["BlockId"])
+    drain_cluster(df['line'])
 
     # Concatenate log keys per block
     grouped_log_keys = df.groupby("block_id")["line"].apply(
@@ -84,15 +87,6 @@ def load_hdfs(hdfs_data_dir):
     df = pd.merge(
         grouped_anomaly_labels, grouped_log_keys, left_index=True, right_index=True
     )
-    # TODO: move to collator
-    # df["line"] = df["line"].apply(lambda x: [bos_token_id] + x + [eos_token_id])
 
-    # save
-    # df.to_csv("./drive/MyDrive/data/drain_parsed.csv", compression="gzip")
-
-    # load
-    # df = pd.read_csv("drain_parsed.csv", compression="gzip")
-    # df["line"] = df["line"].apply(ast.literal_eval)
-
-    # TODO: map down to vocab
+    df.to_csv(cache_file, compression="gzip")
     return df

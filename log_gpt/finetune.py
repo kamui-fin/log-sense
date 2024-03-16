@@ -18,7 +18,7 @@ def compute_loss(input_ids, logits, t):
     return cost
 
 
-def step(model, optimizer, sequence, cut=0.2, val=False):
+def step(model, optimizer, sequence, val=False):
     t = floor(cut * len(sequence))
     input_ids = torch.tensor(sequence[:t]).unsqueeze(0).cuda()
     prompt = {
@@ -29,7 +29,7 @@ def step(model, optimizer, sequence, cut=0.2, val=False):
         **prompt,
         min_length=len(sequence),
         max_length=len(sequence),
-        num_beams=10,
+        num_beams=num_beams,
         early_stopping=False,
         num_return_sequences=1,
         pad_token_id=pad_token_id,
@@ -50,10 +50,9 @@ def finetune(model, optimizer, train_normal_df):
 
     best_loss = float("inf")
 
-    finetune_normal_data = train_normal_df.iloc[:100]
-    idx = floor(0.9 * len(finetune_normal_data))
-    train_set = finetune_normal_data[:idx]
-    val_set = finetune_normal_data[idx:]
+    idx = floor(train_val_ratio * len(train_normal_df))
+    train_set = train_normal_df[:idx]
+    val_set = train_normal_df[idx:]
 
     for episode in tqdm(range(num_episodes), "Episode: "):
         model.train()
