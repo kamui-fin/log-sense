@@ -2,7 +2,7 @@ from torch.distributions.categorical import Categorical
 import pandas as pd
 import torch
 from tqdm import tqdm
-from sklearn.metrics import classification_report
+from sklearn.metrics import average_precision_score, classification_report, confusion_matrix, roc_auc_score
 from log_gpt.config import *
 from log_gpt.preprocess import LogDataset
 
@@ -23,13 +23,17 @@ def evaluate_topk(val_df, model, top_k):
                 is_anomaly = False
                 dist = Categorical(logits=logits[batch_num])
                 for token_id in range(len(labels) - 1):
-                    softmax_top = set(torch.topk(dist.logits[token_id], top_k).indices) # TODO: extract this top k 
-                    ground_truth = labels[token_id + 1]
-                    print(ground_truth, softmax_top)
-                    if ground_truth not in softmax_top:
+                    softmax_top = set([i.detach().cpu().item() for i in torch.topk(dist.logits[token_id], top_k).indices]) # TODO: extract this top k 
+                    actual_token = labels[token_id + 1].detach().cpu().item()
+                    if actual_token == pad_token_id:
+                        break
+                    if actual_token not in softmax_top:
                         is_anomaly = True
                         break
                 predictions.append(is_anomaly)
 
     print(classification_report(ground_truths, predictions))
+    print(confusion_matrix(y_true=ground_truths, y_pred=predictions))
+    print(f'AUC ROC: {roc_auc_score(y_true=ground_truths, y_score=predictions)}')
+    print(F'AUC PR: {average_precision_score(y_true=ground_truths, y_score=predictions)}')
     return predictions

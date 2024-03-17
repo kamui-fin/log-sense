@@ -40,9 +40,9 @@ def step(model, optimizer, sequence, val=False):
 
     loss = compute_loss(sequence, logits, start_gen_pos)
     if not val:
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
     return loss
 
 
