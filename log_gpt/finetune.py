@@ -46,6 +46,7 @@ def step(model, optimizer, sequence, val=False):
 
 
 def finetune(model, optimizer, train_normal_df):
+    print('Beginning model finetuning...')
     last_episode_loss = 0
     count = 0
 
@@ -59,7 +60,7 @@ def finetune(model, optimizer, train_normal_df):
         finetune_trainset = train_set["line"].sample(frac=1)
         train_loss = 0
         for sequence in tqdm(finetune_trainset, "Finetuning: "):
-            train_loss += step(sequence)
+            train_loss += step(model, optimizer, sequence)
         train_loss /= len(finetune_trainset)
 
         print(f"Episode {episode}/{num_episodes} (finetune): {train_loss}")
@@ -68,7 +69,7 @@ def finetune(model, optimizer, train_normal_df):
         val_loss = 0
         for sequence in tqdm(val_set["line"], "Evaluating: "):
             with torch.no_grad():
-                val_loss += step(sequence, val=True)
+                val_loss += step(model, optimizer, sequence, val=True)
         val_loss /= len(val_set)
 
         if last_episode_loss - val_loss <= loss_improv_epsilon:

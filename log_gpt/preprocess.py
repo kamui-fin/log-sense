@@ -27,7 +27,7 @@ class LogDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        input_ids = torch.cat(torch.tensor(bos_token_id), torch.tensor(self.data.iloc[idx]), torch.tensor(eos_token_id))
+        input_ids = torch.cat((torch.tensor([bos_token_id]), torch.tensor(self.data.iloc[idx]), torch.tensor([eos_token_id])))
 
         if len(input_ids) > context_size:
             input_ids = torch.cat(
@@ -62,12 +62,14 @@ def drain_cluster(log_lines):
     print('Top 5 clusters:')
     for cluster in sorted_clusters[:5]:
         print(cluster)
+    return num_clusters
 
 def load_hdfs(hdfs_data_dir, cache_file: Path):
+    print('Loading HDFS dataset...')
     if cache_file.exists():
-        df = pd.read_csv(cache_file, compression="gzip")
-        df["line"] = df["line"].apply(ast.literal_eval)
-        return df
+        df = pd.read_csv(cache_file, compression="gzip", converters={'line': ast.literal_eval })
+        vocab_size = df['line'].apply(max).max()
+        return df, vocab_size
 
     hdfs = Hdfs(
         hdfs_data_dir / "hdfsv1.log",
@@ -76,11 +78,10 @@ def load_hdfs(hdfs_data_dir, cache_file: Path):
         True,
     )
     df = hdfs.df.drop(columns=["BlockId"]) # TODO: refactor
-    drain_cluster(df['line'])
-
+    num_clusters = drain_cluster(df['line'])
     # Concatenate log keys per block
     grouped_log_keys = df.groupby("block_id")["line"].apply(
-        lambda logs: [template_miner.match(log).cluster_id for log in logs]
+        lambda logs: [template_miner.match(log).cluster_id + num_special_tokens for log in logs]
     )
     # Add ground truths to each block
     grouped_anomaly_labels = df.groupby("block_id")["is_anomaly"].first()
@@ -89,9 +90,10 @@ def load_hdfs(hdfs_data_dir, cache_file: Path):
     )
 
     df.to_csv(cache_file, compression="gzip")
-    return df
+    return df, num_clusters + num_special_tokens
 
 def train_test_split(df):
+    print('Creating train test split...')
     normal_df = df[df["is_anomaly"] == 0].sample(frac=1)
     abnormal_df = df[df['is_anomaly'] == 1].sample(frac=1)
     train_df = normal_df[:train_samples]

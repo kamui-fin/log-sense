@@ -1,8 +1,9 @@
 import torch
-from transformers import GPT2Config, GPT2LMHeadModel, AdamW
+from transformers import GPT2Config, GPT2LMHeadModel
+from torch.optim import AdamW
 from tqdm import tqdm
 
-from log_gpt.preprocess import LogDataset, train_val_split
+from log_gpt.preprocess import train_val_split
 from log_gpt.config import *
 
 def get_data_loaders(train_df):
@@ -29,8 +30,9 @@ def setup_model_optimizer(vocab_size):
     optimizer = AdamW(model.parameters(), lr=lr_pretraining)
     return model, optimizer
 
-def pretrain_model(train_df):
-    model, optimizer = setup_model_optimizer()
+def pretrain_model(train_df, vocab_size, output_path):
+    print('Beginning model pre-training...')
+    model, optimizer = setup_model_optimizer(vocab_size)
     train_dataloader, val_dataloader = get_data_loaders(train_df)
     J = []
     for epoch in tqdm(range(num_epochs), desc="Epoch: "):
@@ -59,6 +61,7 @@ def pretrain_model(train_df):
         val_loss /= len(val_dataloader)
         J.append((train_loss, val_loss))
         print(f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss / len(batch)}")
+    save_model(model, optimizer, output_path)
     return model, optimizer, J
 
 
