@@ -14,7 +14,7 @@ def get_data_loaders(train_df):
     val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=batch_size)
     return train_dataloader, val_dataloader
 
-def setup_model_optimizer(vocab_size):
+def setup_model_optimizer(vocab_size, cache_path = None):
     configuration = GPT2Config(
         n_layer=layers,
         n_head=heads,
@@ -28,6 +28,8 @@ def setup_model_optimizer(vocab_size):
 
     model = GPT2LMHeadModel(configuration).cuda()
     optimizer = AdamW(model.parameters(), lr=lr_pretraining)
+    if cache_path:
+        load_model(model, optimizer, cache_path)
     return model, optimizer
 
 def pretrain_model(train_df, vocab_size, output_path):
@@ -61,7 +63,9 @@ def pretrain_model(train_df, vocab_size, output_path):
         val_loss /= len(val_dataloader)
         J.append((train_loss, val_loss))
         print(f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss / len(batch)}")
-    save_model(model, optimizer, output_path)
+        print('Saving model...')
+        save_model(model, optimizer, output_path)
+
     return model, optimizer, J
 
 

@@ -7,7 +7,7 @@ from log_gpt.config import *
 from log_gpt.preprocess import LogDataset
 
 
-def evaluate_topk(val_df, model):
+def evaluate_topk(val_df, model, top_k):
     print('Beginning evaluation...')
     val_dataset = LogDataset(val_df["line"])
     val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=16) # experiment with this batch size
@@ -20,15 +20,16 @@ def evaluate_topk(val_df, model):
             batch = {k: v.cuda() for k, v in batch.items()}
             logits = model(**batch).logits
             for batch_num, labels in enumerate(batch["input_ids"]):
-                    is_anomaly = False
-                    dist = Categorical(logits=logits[batch_num])
-                    for token_id in range(len(labels) - 1):
-                        softmax_top = set(torch.topk(dist.logits[token_id], top_k).indices) # TODO: extract this top k 
-                        ground_truth = labels[token_id + 1]
-                        if ground_truth not in softmax_top:
-                            is_anomaly = True
-                            break
-                    predictions.append(is_anomaly)
+                is_anomaly = False
+                dist = Categorical(logits=logits[batch_num])
+                for token_id in range(len(labels) - 1):
+                    softmax_top = set(torch.topk(dist.logits[token_id], top_k).indices) # TODO: extract this top k 
+                    ground_truth = labels[token_id + 1]
+                    print(ground_truth, softmax_top)
+                    if ground_truth not in softmax_top:
+                        is_anomaly = True
+                        break
+                predictions.append(is_anomaly)
 
     print(classification_report(ground_truths, predictions))
     return predictions

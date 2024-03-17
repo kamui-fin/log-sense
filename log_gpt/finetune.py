@@ -9,7 +9,7 @@ from log_gpt.pretrain import save_model
 
 def compute_loss(input_ids, logits, start_gen_pos):
     reward = log_prob = 0
-    for i in range(start_gen_pos, len(input_ids) - 1):
+    for i in range(start_gen_pos - 1, len(input_ids) - 1):
         softmax = Categorical(logits=logits[i])
         next_token_id = input_ids[i + 1]
         log_prob += softmax.log_prob(torch.tensor(next_token_id).cuda())
@@ -20,6 +20,7 @@ def compute_loss(input_ids, logits, start_gen_pos):
 
 
 def step(model, optimizer, sequence, val=False):
+    sequence = [bos_token_id] + sequence + [eos_token_id]
     start_gen_pos = floor(cut * len(sequence))
     input_ids = torch.tensor(sequence[:start_gen_pos]).unsqueeze(0).cuda()
     prompt = {
@@ -45,7 +46,7 @@ def step(model, optimizer, sequence, val=False):
     return loss
 
 
-def finetune(model, optimizer, train_normal_df):
+def finetune(model, optimizer, train_normal_df, cache_path = None):
     print('Beginning model finetuning...')
     last_episode_loss = 0
     count = 0
@@ -82,7 +83,7 @@ def finetune(model, optimizer, train_normal_df):
 
         if val_loss < best_loss or episode == 0:
             print("New best model! Saving...")
-            save_model(model, optimizer)
+            save_model(model, optimizer, cache_path)
             best_loss = val_loss
 
         print(f"Episode {episode}/{num_episodes} (eval): {val_loss}")
