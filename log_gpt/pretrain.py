@@ -2,18 +2,11 @@ import torch
 from transformers import GPT2Config, GPT2LMHeadModel, AdamW
 from tqdm import tqdm
 
-from log_gpt.preprocess import LogDataset
+from log_gpt.preprocess import LogDataset, train_val_split
 from log_gpt.config import *
 
-def get_data_loaders(df):
-    normal_df = df[df["is_anomaly"] == 0]
-    abnormal_df = df[df["is_anomaly"] == 1]
-    train_normal_df = normal_df.iloc[:5000]
-    val_df = normal_df.iloc[5000:8000]
-
-    train_dataset = LogDataset(train_normal_df["line"])
-    val_dataset = LogDataset(val_df["line"])
-
+def get_data_loaders(train_df):
+    train_dataset, val_dataset = train_val_split(train_df, torch_dataset=True)
     train_dataloader = torch.utils.data.DataLoader(
         dataset=train_dataset, batch_size=batch_size
     )
@@ -36,7 +29,10 @@ def setup_model_optimizer(vocab_size):
     optimizer = AdamW(model.parameters(), lr=lr_pretraining)
     return model, optimizer
 
-def pretrain_model(model, optimizer, train_dataloader, val_dataloader):
+def pretrain_model(train_df):
+    model, optimizer = setup_model_optimizer()
+    train_dataloader, val_dataloader = get_data_loaders(train_df)
+    J = []
     for epoch in tqdm(range(num_epochs), desc="Epoch: "):
         model.train()
         train_loss = 0
@@ -61,15 +57,17 @@ def pretrain_model(model, optimizer, train_dataloader, val_dataloader):
                 val_loss += outputs.loss.item()
 
         val_loss /= len(val_dataloader)
+        J.append((train_loss, val_loss))
         print(f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss / len(batch)}")
+    return model, optimizer, J
 
 
-def save_model(model, optimizer):
+def save_model(model, optimizer, saved_model_path):
     state = {
         "state_dict": model.state_dict(),
         "optimizer": optimizer.state_dict(),
     }
-    torch.save(state, "model.pt")
+    torch.save(state, saved_model_path)
 
 
 def load_model(model, optimizer, saved_model_path):

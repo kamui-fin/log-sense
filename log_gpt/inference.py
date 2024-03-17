@@ -9,10 +9,12 @@ from log_gpt.preprocess import LogDataset
 
 # Top K prediction
 # TODO: speed up
-def predict(normal_df, abnormal_df, model):
+def predict(df, model):
+    normal_df = df[df["is_anomaly"] == 0]
+    abnormal_df = df[df["is_anomaly"] == 1]
     val_df = pd.concat([normal_df[train_samples:], abnormal_df])
     val_dataset = LogDataset(val_df["line"])
-    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=16)
+    val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=16) # experiment with this batch size
     ground_truths = val_df["is_anomaly"]
 
     model.eval()
@@ -25,7 +27,7 @@ def predict(normal_df, abnormal_df, model):
                 is_anomaly = False
                 dist = Categorical(logits=logits[batch_num])
                 for token_id in range(len(labels) - 1):
-                    softmax_top = set(torch.topk(dist.logits[token_id], 5).indices)
+                    softmax_top = set(torch.topk(dist.logits[token_id], 5).indices) # TODO: extract this top k 
                     ground_truth = labels[token_id + 1]
                     if ground_truth not in softmax_top:
                         is_anomaly = True

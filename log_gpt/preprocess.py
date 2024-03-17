@@ -75,7 +75,7 @@ def load_hdfs(hdfs_data_dir, cache_file: Path):
         hdfs_data_dir / "cache_no_regex.csv",
         True,
     )
-    df = hdfs.df.drop(columns=["BlockId"])
+    df = hdfs.df.drop(columns=["BlockId"]) # TODO: refactor
     drain_cluster(df['line'])
 
     # Concatenate log keys per block
@@ -90,3 +90,20 @@ def load_hdfs(hdfs_data_dir, cache_file: Path):
 
     df.to_csv(cache_file, compression="gzip")
     return df
+
+def train_test_split(df):
+    normal_df = df[df["is_anomaly"] == 0].sample(frac=1)
+    abnormal_df = df[df['is_anomaly'] == 1].sample(frac=1)
+    train_df = normal_df[:train_samples]
+    test_df = pd.concat([normal_df[train_samples:], abnormal_df])
+    return train_df, test_df
+
+def train_val_split(train_df, torch_dataset=False):
+    # We split a train_df further, usually with a 0.9 ratio for quick validation within training loops
+    idx = int(train_val_ratio * len(train_df))
+    train_set = train_df[:idx]
+    val_set = train_df[idx:]
+    if torch_dataset:
+        train_set = LogDataset(train_set["line"])
+        val_set = LogDataset(val_set["line"])
+    return train_set, val_set

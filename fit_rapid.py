@@ -2,8 +2,6 @@ from pathlib import Path
 from dataset import Hdfs
 from rapid.model import Rapid, evaluate
 
-# Example usage with hdfs dataset
-
 log_file = Path("data/hdfs/hdfsv1_head.log")
 labels_file = Path("data/hdfs/anomaly_label.csv")
 cache_file = Path('data/hdfs/cache.csv')
