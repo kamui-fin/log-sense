@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 import re
 import datetime
+from datetime import datetime
+
+from tqdm import tqdm
 
 # NOTE: Regex taken from RAPID paper original implementation
 
@@ -81,7 +84,8 @@ class BGL:
         """
         @returns is_alert, cleaned_line
         """
-        is_anomaly = re.search('^- ', line) is None
+        is_anomaly_regex = re.compile('^- ')
+        is_anomaly = re.search(is_anomaly_regex, line) is None
         date_time_regex = re.compile(
             "\d{1,4}\-\d{1,2}\-\d{1,2}-\d{1,2}.\d{1,2}.\d{1,2}.\d{1,6}"
         )
@@ -98,6 +102,7 @@ class BGL:
         
         timestamp = datetime.strptime(re.findall(date_time_regex, line)[0], '%Y-%m-%d-%H.%M.%S.%f')
 
+        line = re.sub(is_anomaly_regex, '', line)
         line = re.sub(date_time_regex, 'DT', line)
         line = re.sub(date_regex, 'DATE', line)
         line = re.sub(ip_regex, 'IP', line)
@@ -116,7 +121,7 @@ class BGL:
         cleaned_logs = []
         labels = []
         timestamps = []
-        for line in self.data:
+        for line in tqdm(self.data):
             is_anomaly, timestamp, line = self.regex_sub_line(line)
             labels.append(is_anomaly)
             timestamps.append(timestamp)

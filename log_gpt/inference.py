@@ -7,9 +7,11 @@ from log_gpt.config import *
 from log_gpt.preprocess import LogDataset
 
 
-def evaluate_topk(val_df, model, top_k):
+def evaluate_topk(val_df, model, top_k = top_k, sliding_window = False, trim = False):
     print('Beginning evaluation...')
-    val_dataset = LogDataset(val_df["line"])
+    if trim:
+        val_df = val_df.sample(100)
+    val_dataset = LogDataset(val_df['line'], sliding_window = sliding_window)
     val_dataloader = torch.utils.data.DataLoader(dataset=val_dataset, batch_size=16) # experiment with this batch size
     ground_truths = val_df["is_anomaly"]
 

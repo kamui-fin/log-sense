@@ -28,13 +28,13 @@ def setup_model_optimizer(vocab_size, cache_path = None):
 
     model = GPT2LMHeadModel(configuration).cuda()
     optimizer = AdamW(model.parameters(), lr=lr_pretraining)
-    if cache_path:
+    if cache_path and cache_path.exists():
         load_model(model, optimizer, cache_path)
     return model, optimizer
 
 def pretrain_model(train_df, vocab_size, output_path):
     print('Beginning model pre-training...')
-    model, optimizer = setup_model_optimizer(vocab_size)
+    model, optimizer = setup_model_optimizer(vocab_size, output_path) # resume from last trained if possible
     train_dataloader, val_dataloader = get_data_loaders(train_df)
     J = []
     for epoch in tqdm(range(num_epochs), desc="Epoch: "):

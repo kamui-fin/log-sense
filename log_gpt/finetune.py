@@ -13,16 +13,31 @@ def compute_loss(input_ids, logits, start_gen_pos):
         softmax = Categorical(logits=logits[i])
         next_token_id = input_ids[i + 1]
         log_prob += softmax.log_prob(torch.tensor(next_token_id).cuda())
-        top_next_tokens = torch.topk(logits[i], k=5).indices
+        top_next_tokens = torch.topk(logits[i], k=top_k).indices
         reward += 1 if next_token_id in top_next_tokens else -1
     cost = -reward * log_prob
     return cost
 
 
-def step(model, optimizer, sequence, val=False):
-    sequence = [bos_token_id] + sequence + [eos_token_id]
+def step(model, optimizer, sequence, val=False, sliding_window = False):
+    if not sliding_window:
+        sequence = [bos_token_id] + sequence + [eos_token_id]
     start_gen_pos = floor(cut * len(sequence))
-    input_ids = torch.tensor(sequence[:start_gen_pos]).unsqueeze(0).cuda()
+    if sliding_window:
+        if start_gen_pos < 1:
+            input_ids = torch.tensor([sequence[:1]])
+        elif start_gen_pos >= len(sequence) - 1:
+            input_ids = torch.tensor([sequence[:-1]])
+        else:
+            input_ids = torch.tensor([sequence[:start_gen_pos]])
+    else:
+        if start_gen_pos < 2:
+            input_ids = torch.tensor([sequence[:2]])
+        elif start_gen_pos >= len(sequence) - 2:
+            input_ids = torch.tensor([sequence[:-2]])
+        else:
+            input_ids = torch.tensor([sequence[:start_gen_pos]])
+    input_ids = input_ids.cuda()
     prompt = {
         "input_ids": input_ids,
         "attention_mask": (input_ids != pad_token_id).float(),
@@ -46,7 +61,7 @@ def step(model, optimizer, sequence, val=False):
     return loss
 
 
-def finetune(model, optimizer, train_normal_df, cache_path = None):
+def finetune(model, optimizer, train_normal_df, cache_path = None, sliding_window = False):
     print('Beginning model finetuning...')
     last_episode_loss = 0
     count = 0
@@ -61,7 +76,7 @@ def finetune(model, optimizer, train_normal_df, cache_path = None):
         finetune_trainset = train_set["line"].sample(frac=1)
         train_loss = 0
         for sequence in tqdm(finetune_trainset, "Finetuning: "):
-            train_loss += step(model, optimizer, sequence)
+            train_loss += step(model, optimizer, sequence, sliding_window=sliding_window)
         train_loss /= len(finetune_trainset)
 
         print(f"Episode {episode}/{num_episodes} (finetune): {train_loss}")
@@ -70,7 +85,7 @@ def finetune(model, optimizer, train_normal_df, cache_path = None):
         val_loss = 0
         for sequence in tqdm(val_set["line"], "Evaluating: "):
             with torch.no_grad():
-                val_loss += step(model, optimizer, sequence, val=True)
+                val_loss += step(model, optimizer, sequence, val=True, sliding_window=sliding_window)
         val_loss /= len(val_set)
 
         if last_episode_loss - val_loss <= loss_improv_epsilon:

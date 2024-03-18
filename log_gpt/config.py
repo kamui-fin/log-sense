@@ -11,9 +11,12 @@ lr_pretraining = 1e-4
 lr_finetuning = 1e-6
 batch_size = 16
 
-top_k = 7
+# HDFS: 7
+# BGL: 80
+# TB: 690
+top_k = 80
 
-num_episodes = 20
+num_episodes = 1
 num_epochs = 10
 
 loss_improv_epsilon = 0.01
@@ -23,7 +26,7 @@ bos_token_id = 0
 eos_token_id = 1
 pad_token_id = 2
 
-num_beams = 10
+num_beams = 5
 cut = 0.2
 
 train_samples = 5000
