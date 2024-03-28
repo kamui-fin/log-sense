@@ -23,9 +23,9 @@ from pyflink.datastream.state import (
     MapStateDescriptor,
     ListStateDescriptor,
 )
-from processing import *
 from transformers import BertTokenizer
 import re
+import hashlib
 
 # currently only for HDFS rn
 def regex_clean(log_line):
@@ -45,46 +45,71 @@ class LogAggregator(AggregateFunction):
 
     def create_accumulator(self):
         return {
+            "unique_logs": {},
             "chunks": [],
-            "current_chunk": {
-                "num_tokens": 0,
+            "num_tokens": 0,
+            "current_tokens": {
                 "input_ids": [],
                 "attention_mask": [],
                 "concatenated_text": "",
+            },
+            "current_chunk": {
+                "log_hash": "",
                 "start_timestamp": 0,
                 "end_timestamp": 0,
                 "file_sources": set(),
             },
         }
     
+    def add_current_chunk(self, accumulator):
+        chunk_text = accumulator['current_tokens']['concatenated_text']
+        if chunk_text == '':
+            return
+
+        log_hash = hashlib.sha1(chunk_text.encode('utf-8')).hexdigest()
+        
+        if log_hash not in accumulator['unique_logs']:
+            pad_input_ids = accumulator['current_tokens']['input_ids'] + [0] * (512 - len(accumulator['current_tokens']['input_ids']))
+            pad_mask = accumulator['current_tokens']['attention_mask'] + [0] * (512 - len(accumulator['current_tokens']['attention_mask']))
+            accumulator['current_tokens']['input_ids'] = pad_input_ids
+            accumulator['current_tokens']['attention_mask'] = pad_mask
+            
+            accumulator['unique_logs'][log_hash] = accumulator['current_tokens']
+
+        accumulator['current_chunk']['log_hash'] = log_hash
+        accumulator['chunks'].append(accumulator['current_chunk'])
+
     def add(self, log_data, accumulator):
         clean_log = regex_clean(log_data['log'])
         tokens = self.tokenizer(clean_log, padding=False, truncation=True, max_length=512)
         input_ids, attention_mask = tokens['input_ids'], tokens['attention_mask']
-        starting_accum = accumulator['current_chunk']['num_tokens'] == 0
+        starting_accum = accumulator['num_tokens'] == 0
+
         if not starting_accum:
             input_ids, attention_mask = input_ids[1:], attention_mask[1:]
         else:
             accumulator['current_chunk']['start_timestamp'] = log_data['timestamp']
-        accumulator['current_chunk']['num_tokens'] += len(input_ids)
+
         accumulator['current_chunk']['end_timestamp'] = log_data['timestamp']
-        if accumulator['current_chunk']['num_tokens'] <= 512:
-            accumulator['current_chunk']['input_ids'].extend(input_ids)
-            accumulator['current_chunk']['attention_mask'].extend(attention_mask)
-            accumulator['current_chunk']['concatenated_text'] += clean_log
+
+        accumulator['num_tokens'] += len(input_ids)
+        if accumulator['num_tokens'] <= 512:
+            accumulator['current_tokens']['input_ids'].extend(input_ids)
+            accumulator['current_tokens']['attention_mask'].extend(attention_mask)
+            accumulator['current_tokens']['concatenated_text'] += clean_log
+
             accumulator['current_chunk']['file_sources'].add(log_data['filename'])
         else:
-            pad_input_ids = accumulator['current_chunk']['input_ids'] + [0] * (512 - len(accumulator['current_chunk']['input_ids']))
-            pad_mask = accumulator['current_chunk']['attention_mask'] + [0] * (512 - len(accumulator['current_chunk']['attention_mask']))
-            accumulator['current_chunk']['input_ids'] = pad_input_ids
-            accumulator['current_chunk']['attention_mask'] = pad_mask
-            accumulator['chunks'].append(accumulator['current_chunk'])
+            self.add_current_chunk(accumulator)
             # Initialize new chunk
-            accumulator['current_chunk'] = {
-                "num_tokens": len(input_ids),
+            accumulator['num_tokens'] = len(input_ids)
+            accumulator['current_tokens'] = {
                 "input_ids": input_ids,
                 "attention_mask": attention_mask,
-                "concatenated_text": clean_log,
+                "concatenated_text": clean_log
+            }
+            accumulator['current_chunk'] = {
+                'log_hash': "",
                 "start_timestamp": log_data['timestamp'],
                 "end_timestamp": log_data['timestamp'],
                 "file_sources": set([log_data['filename']])
@@ -92,12 +117,11 @@ class LogAggregator(AggregateFunction):
         return accumulator
 
     def get_result(self, accumulator):
-        pad_input_ids = accumulator['current_chunk']['input_ids'] + [0] * (512 - len(accumulator['current_chunk']['input_ids']))
-        pad_mask = accumulator['current_chunk']['attention_mask'] + [0] * (512 - len(accumulator['current_chunk']['attention_mask']))
-        accumulator['current_chunk']['input_ids'] = pad_input_ids
-        accumulator['current_chunk']['attention_mask'] = pad_mask
-        accumulator['chunks'].append(accumulator['current_chunk'])
-        return accumulator['chunks']
+        self.add_current_chunk(accumulator)
+        return {
+            'unique_logs': accumulator['unique_logs'],
+            'chunks': accumulator['chunks']
+        }
 
     def merge(self, acc1, acc2):
         # merging isn't necessary in this case
@@ -121,10 +145,10 @@ class LogTimestampAssigner(TimestampAssigner):
 env = StreamExecutionEnvironment.get_execution_environment()
 
 # dummy testing data
-json_data = json.loads(pathlib.Path("./data/kafka_dummy.json").read_text())
+json_data = json.loads(pathlib.Path("./data/test_hash.json").read_text())
 for log in json_data:
     log['timestamp'] = int(str(log['timestamp'])[:14])
-collection = sorted(json_data, key=lambda x: x['timestamp'])
+collection = sorted(json_data, key=lambda x: x['timestamp'], reverse=True)
 
 data_stream = env.from_collection(collection=collection)
 
