@@ -1,6 +1,7 @@
 from pathlib import Path
 from dataset import Hdfs
-from rapid.model import Rapid, evaluate
+from rapid.model import evaluate
+from logsense import Rapid
 
 log_file = Path("data/hdfs/hdfsv1_head.log")
 labels_file = Path("data/hdfs/anomaly_label.csv")

@@ -62,6 +62,7 @@ class DBCache:
 @dataclass
 class RapidKNN:
     k_nearest_neighbors: NearestNeighbors
+
 class KNNCache:
     def __init__(self, output_dir):
         self.knn_path = output_dir / f'knn.pkl'

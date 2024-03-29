@@ -7,7 +7,7 @@ from log_gpt.config import *
 from log_gpt.preprocess import LogDataset
 
 
-def evaluate_topk(val_df, model, top_k = top_k, sliding_window = False, trim = False):
+def predict_topk(val_df, model, top_k = top_k, sliding_window = False, trim = False):
     print('Beginning evaluation...')
     if trim:
         val_df = val_df.sample(100)

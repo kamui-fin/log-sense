@@ -39,13 +39,3 @@ def evaluate(test_y, final_pred):
 
     auc = roc_auc_score(test_y, final_pred)
     print(f'AUC = {auc}')
-
-class Rapid:
-    def __init__(self, output_dir):
-        self.output_dir = output_dir
-
-    def fit(self, normal_logs) -> None:
-        self.normal_db, self.knn = build_normal_db(normal_logs, self.output_dir)
-
-    def predict(self, test_logs) -> pd.Series:
-        return predict_test(test_logs, self.normal_db, self.output_dir, self.knn)
