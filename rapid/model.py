@@ -15,6 +15,7 @@ def predict_test(test_X, normal_db, output_dir, knn):
     abnormal_scores = [0] * db.num_unique_logs
     for index in tqdm(range(db.num_unique_logs)):
         core_set = get_core_set(db.embedding_db[index][0], knn)
+        # NOTE: [1:] might not be right
         abnormal_scores[index] = min(distance(db.embedding_db[index], normal_db.embedding_db[c_index]) for c_index in core_set[1:])
 
     print(f'Generating final predictions...')

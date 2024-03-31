@@ -1,4 +1,5 @@
 wal/
 loki*
+jar/
 *.log
 *.yml
