@@ -112,7 +112,7 @@ for current_svc in configured_services:
     current_stream = env.from_source(current_source, watermark_strategy, current_svc)
     windowed_stream = (
         current_stream.map(lambda x: json.loads(x))
-        .window_all(TumblingEventTimeWindows.of(Time.seconds(60)))
+        .window_all(TumblingEventTimeWindows.of(Time.seconds(5)))
         .aggregate(LogAggregator())
         .map(lambda x: json.dumps(x), Types.STRING())
     )
