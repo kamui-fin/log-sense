@@ -32,7 +32,7 @@ async def tail_loki(uri):
                         "node": node,
                         "filename": filename,
                         "timestamp": timestamp,
-                        "log": log,
+                        "text": log,
                     }
                     kafka_entry_ser = json.dumps(kafka_entry).encode("utf-8")
                     producer.send(service, kafka_entry_ser)

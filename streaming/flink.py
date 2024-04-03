@@ -12,7 +12,7 @@ from pyflink.common import Time, WatermarkStrategy, Duration
 from pyflink.common.typeinfo import Types
 from pyflink.common.watermark_strategy import TimestampAssigner
 from pyflink.datastream import StreamExecutionEnvironment
-from pyflink.datastream.functions import KeyedProcessFunction, RuntimeContext, FlatMapFunction
+from pyflink.datastream.functions import KeyedProcessFunction, RuntimeContext, FlatMapFunction, MapFunction
 from pyflink.common import Types, WatermarkStrategy, Time, Encoder
 from pyflink.common.watermark_strategy import TimestampAssigner
 from pyflink.datastream import (
@@ -54,38 +54,26 @@ def regex_clean(log_line):
 
     return log_line
 
-class LogAggregator(AggregateFunction):
-    def __init__(self):
+class RegexTokenize(MapFunction):
+    def __init__(self) -> None:
+        super().__init__()
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
-    def create_accumulator(self):
-        return {"unique_logs": {}, "all_logs": []}
-
-    def add(self, log, accumulator):
-        unique_logs, all_logs = accumulator["unique_logs"], accumulator["all_logs"]
-        clean_log = regex_clean(log["log"])
-        hash_log = hashlib.sha1(clean_log.encode("utf-8")).hexdigest()
+    def map(self, log_data):
+        clean_log = regex_clean(log_data["log"])
+        sha256_hash = hashlib.sha256(clean_log.encode('utf-8')).digest()
+        hash_log = int.from_bytes(sha256_hash[:8], byteorder="big")
         tokens = self.tokenizer(
             clean_log, padding="max_length", truncation=True, max_length=512
         )
-        input_ids, attention_mask = tokens["input_ids"], tokens["attention_mask"]
-
-        if hash_log not in unique_logs:
-            unique_logs[hash_log] = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-                **log,
-            }
-
-        all_logs.append(hash_log)
-        return accumulator
-
-    def get_result(self, accumulator):
-        return accumulator
-
-    def merge(self, acc1, acc2):
-        return NotImplementedError()
-
+        processed_log = {
+            'text': clean_log,
+            'hash': hash_log,
+            'tokens': tokens,
+            **log_data
+        }
+        print(processed_log)
+        return processed_log
 
 class LogTimestampAssigner(TimestampAssigner):
     def extract_timestamp(self, log_data, record_timestamp) -> int:
@@ -112,9 +100,8 @@ for current_svc in configured_services:
     current_stream = env.from_source(current_source, watermark_strategy, current_svc)
     windowed_stream = (
         current_stream.map(lambda x: json.loads(x))
-        .window_all(TumblingEventTimeWindows.of(Time.seconds(5)))
-        .aggregate(LogAggregator())
-        .map(lambda x: json.dumps(x), Types.STRING())
+                      .map(RegexTokenize())
+                      .map(lambda x: json.dumps(x), Types.STRING())
     )
     sink = KafkaSink.builder() \
         .set_bootstrap_servers("localhost:9092") \
