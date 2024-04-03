@@ -1,7 +1,0 @@
-- [ ] setup frontend and config backend (abhay)
-- [ ] dynamic thresholding (abhay)
-- [ ] offline updating (sai)
-- [ ] hook everything together for a MVP (rapid-only)
-- [x] multi-service
-- [x] training-only mode
-- [ ] start looking into LogGPT integration

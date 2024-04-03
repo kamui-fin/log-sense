@@ -1,80 +1,62 @@
-from dataclasses import dataclass
+import sys
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
+from inference.models import GlobalConfig, ServiceConfig, LogEvent
 import json
 from typing import Literal, Union
 from kafka import KafkaConsumer, KafkaProducer
 import argparse
-
 from qdrant_client import QdrantClient
-
+import logging
 from inference.rapid import RapidInferenceAPI
 
 producer = KafkaProducer(bootstrap_servers="localhost:9092")
 client = QdrantClient("localhost", port=6333)
 
-@dataclass
-class Config:
-    mode: Literal['train', 'test']
-    threshold: float
-    coreset_number: int
+logging.basicConfig(level=logging.INFO)
 
-
-@dataclass
-class LogEvent:
-    service: str
-    node: str
-    filename: str
-    text: str
-    tokens: dict
-    hash: int
-    timestamp: int
-
-    def from_dict(self, data):
-        return LogEvent(
-            service=data["service"],
-            node=data["node"],
-            filename=data["filename"],
-            text=data["text"],
-            hash=data["hash"],
-            timestamp=data["timestamp"],
-        )
-    
-    def to_dict(self):
-        return {
-            "service": self.service,
-            "node": self.node,
-            "filename": self.filename,
-            "text": self.text,
-            "hash": self.hash,
-            "timestamp": self.timestamp,
-        }
-
-def get_config(base_url) -> Config:
-    # GET request to config microservice 
+def get_config(base_url = '') -> GlobalConfig:
+    # GET request to config microservice
     # for now, let's mock it out
-    return Config(mode='test', threshold=-470, coreset_number=2)
+    return GlobalConfig(configs={'service1': ServiceConfig(mode="test", threshold=-481.175, coreset_number=2)})
+
 
 def listen_inference(svc):
     consumer = KafkaConsumer(
-        [f"{svc}-processed", "config-change"],
+        f"{svc}-processed", "config-change",
         bootstrap_servers=["localhost:9092"],
         group_id="inference-group",
         auto_offset_reset="latest",
         enable_auto_commit=True,
         value_deserializer=lambda x: json.loads(x.decode("utf-8")),
     )
-    inferencer = RapidInferenceAPI(client, producer, svc)
     config = get_config()
+    logging.info(f'Inference service "{svc}" started')
+    logging.info(f'Using previous config {config}')
+    inferencer = RapidInferenceAPI(client, svc, config)
     for message in consumer:
         if message.topic == "config-change":
-            config_update = Config.from_dict(message.value)
+            config_update = GlobalConfig.from_dict(message.value)
+            logging.info(f'Received config update: {config_update}')
+            logging.info(f'Old config: {inferencer.config}')
             inferencer.reload_config(config_update)
+            logging.info(f'New config: {inferencer.config}')
         else:
             event = LogEvent.from_dict(message.value)
-            print("Received event:", event)
-            # score, is_anomaly = inferencer.run_inference(event)
-            # producer.send(
-            #     "predictions", value={"score": score, "is_anomaly": is_anomaly, **event}
-            # )
+            logging.info(f"Received log: {event}")
+            result = inferencer.run_inference(event)
+            if result is None:
+                continue
+            score, is_anomaly = result
+            output = event.to_dict()
+            del output['tokens']
+            print(output, score, is_anomaly)
+            producer.send(
+                "predictions", value=json.dumps({"score": score, "is_anomaly": is_anomaly, **output}).encode('utf-8')
+            )
 
 
 if __name__ == "__main__":

@@ -3,19 +3,23 @@ import websockets
 import json
 from urllib.parse import quote
 from kafka import KafkaProducer
+import logging
 
 LOKI_ENDPOINT = "ws://localhost:3100/loki/api/v1/tail"
-SERVICES = ["test", "lol"]
+SERVICES = ["service1", "service2"]
 
 bootstrap_servers = "localhost:9092"
 producer = KafkaProducer(bootstrap_servers=bootstrap_servers)
 
+
 def shorten_timestamp(timestamp):
     return int(str(timestamp)[:14])
+
 
 async def tail_loki(uri):
     # FIXME: Tail timeouts after 1hr
     async with websockets.connect(uri) as websocket:
+        logging.info(f'Successfully connected to {uri}')
         while True:
             logs = json.loads(await websocket.recv())
             streams = logs["streams"]
@@ -32,10 +36,13 @@ async def tail_loki(uri):
                         "node": node,
                         "filename": filename,
                         "timestamp": timestamp,
-                        "text": log,
+                        "service": service,
+                        "original_text": log,
                     }
+                    print(f'Recieved loki entry: {kafka_entry}')
                     kafka_entry_ser = json.dumps(kafka_entry).encode("utf-8")
                     producer.send(service, kafka_entry_ser)
+                    print(f'Sent to kafka!')
 
 
 async def main():

@@ -1,3 +1,4 @@
+import logging
 from typing import Union
 import pandas as pd
 from kafka import KafkaProducer
@@ -13,9 +14,7 @@ from qdrant_client.http.models import PointStruct
 from qdrant_client.http.models import Distance, VectorParams
 from tqdm.notebook import tqdm
 
-from inference.app import Config, LogEvent
-
-model = BertModel.from_pretrained("bert-base-uncased").to("cuda:0")
+from inference.models import GlobalConfig, LogEvent
 
 def distance(query_emb, train_embedding):
     dot_products = query_emb @ train_embedding.T
@@ -25,82 +24,100 @@ def distance(query_emb, train_embedding):
     max_similarity = (dot_products / normalized_pairs).max(dim=-1).values.sum(dim=-1)
     return 1 - max_similarity
 
-def get_sentence_embedding(log: LogEvent):
-    output = model(**log.tokens)
-    embeddings = output.last_hidden_state
-    # we must deallocate from gpu mem!
-    del encoded_input
-    return embeddings.detach().cpu()  # use first for [CLS]
 
 class RapidInferenceAPI:
     def __init__(self, client, service, config):
         self.client = client
         self.service = service
         self.config = config
+        self.model = BertModel.from_pretrained("bert-base-uncased").to("cuda:0")
 
-    def reload_config(self, config: Config):
+        self.normal_collection_name = f"normal-{self.service}"
+        self.init_qdrant()
+
+    def reload_config(self, config: GlobalConfig):
         self.config = config
 
-    def init_qdrant(self, client):
-        for collection_name in [f'normal-{self.service}', 'test']:
-            if collection_name not in client.list_collections():
-                client.create_collection(
+    def init_qdrant(self):
+        for collection_name in [self.normal_collection_name, "test"]:
+            if not self.client.collection_exists(collection_name):
+                logging.info(f'Creating collection "{collection_name}"')
+                self.client.create_collection(
                     collection_name=collection_name,
                     vectors_config=VectorParams(
-                        size=model.config.hidden_size, distance=Distance.COSINE
+                        size=self.model.config.hidden_size, distance=Distance.COSINE
                     ),
                 )
 
+    def get_sentence_embedding(self, log: LogEvent):
+        logging.info(f"Getting embedding..")
+        # map each list within log.tokens into a tensor and move to cuda
+        for key, value in log.tokens.items():
+            if isinstance(value, list) or value.device.type == "cpu":
+                log.tokens[key] = torch.tensor(value).unsqueeze(0).to("cuda:0")
+        output = self.model(**log.tokens)
+        embeddings = output.last_hidden_state
+        # we must deallocate from gpu mem!
+        for key, value in log.tokens.items():
+            log.tokens[key] = value.detach().cpu().squeeze(0).tolist()
+        return embeddings.detach().cpu()  # use first for [CLS]
+
     def generate_point(self, log_event: LogEvent):
-        embedding = get_sentence_embedding(log_event)
+        embedding = self.get_sentence_embedding(log_event)
         cls_embedding = embedding[0, 0].numpy()
-        token_embeddings = embedding[0, 1:].numpy()
+        token_embeddings = embedding[0, 1:].numpy().tolist()
         point = PointStruct(
-            id=hash,
+            id=log_event.hash,
             vector=cls_embedding,
-            payload={"tokens": token_embeddings.tolist()},
+            payload={"tokens": token_embeddings},
         )
         return point
 
-    def add_log_to_collection(self, log: LogEvent, collection='normal'):
+    def add_log_to_collection(self, log: LogEvent, collection):
+        logging.info(f'Adding log "{log}" to collection {collection}..')
         point = self.generate_point(log)
         self.client.upsert(collection_name=collection, points=[point])
         return point
 
-
     def get_embedding_test(self, test_log: LogEvent):
         point = self.get_point_from_test_col(test_log.hash)
         if not point:
-            point = self.add_log_to_collection(test_log, 'test')
+            logging.info(f'Could not find log in test collection. Generating and adding...')
+            point = self.add_log_to_collection(test_log, "test")
         else:
-            print("Fetching embedding from cache!")
+            logging.info("Fetching embedding from cache!")
             point = point[0]
         return point
 
-
-    def get_score(self, log: LogEvent, core_set_size = 2):
-        embedding = get_sentence_embedding(log)[0]
+    def get_score(self, log: LogEvent, core_set_size=2):
+        logging.info('Scoring log..')
+        embedding = self.get_sentence_embedding(log)[0]
+        logging.info(f'Generating coreset..')
         core_set = self.client.search(
-            collection_name="normal",
+            collection_name=self.normal_collection_name,
             query_vector=embedding[0].numpy(),
             limit=core_set_size,
-            with_payload=["tokens"],
+            with_payload=["cleaned_text", "tokens"],
             with_vectors=False,
         )
+        print([c.payload["text"] for c in core_set])
+        logging.info(f'Found core set of length {len(core_set)}')
+        logging.info('Calculating anomaly score..')
         anomaly_score = min(
             distance(embedding, torch.tensor(c.payload["tokens"])) for c in core_set
         )
         return anomaly_score
 
-
     def log_exists_in_normal_col(self, hash: int):
         return (
             self.client.retrieve(
-                collection_name="normal", ids=[hash], with_payload=False, with_vectors=False
+                collection_name=self.normal_collection_name,
+                ids=[hash],
+                with_payload=False,
+                with_vectors=False,
             )
             != []
         )
-
 
     def get_point_from_test_col(self, hash: int):
         return self.client.retrieve(
@@ -109,22 +126,30 @@ class RapidInferenceAPI:
 
     # Entrypoint
     def run_inference(self, test_log: LogEvent):
+        logging.info('Running inference on "{test_log}"..')
         if self.log_exists_in_normal_col(test_log.hash):
-            print("Log exists in normal db!")
+            logging.info("Log already exists in normal db!")
             return
         point = self.get_embedding_test(test_log)
-        if not is_anomaly or self.config.mode == "train":
-            print("Adding to normal db..")
+        if self.config.configs[self.service].mode == "train":
+            logging.info("Adding to normal db..")
             self.client.upsert(
                 collection_name="normal", points=[point]
             )  # NOTE: will exist in both test and normal collection (optimize later?)
 
         score = self.get_score(test_log)
-        print(f"Score: {score}")
-        is_anomaly = score < self.config.threshold
-        print(f"Is anomaly: {is_anomaly}")
+        logging.info(f"Score: {score}")
+        is_anomaly = score > self.config.configs[self.service].threshold
+        logging.info(f"Is anomaly: {is_anomaly}")
 
-        return score, is_anomaly
+        if not is_anomaly:
+            logging.info("Adding to normal db..")
+            self.client.upsert(
+                collection_name="normal", points=[point]
+            )  # NOTE: will exist in both test and normal collection (optimize later?)
+
+        return score.item(), is_anomaly.item()
+
 
 # BGL TESTING
 # def experiment_bgl():
