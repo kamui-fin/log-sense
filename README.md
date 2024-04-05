@@ -1,63 +1,76 @@
-# Log Sense - Research Proposal
+# LogSense
 
-In this study, we aim to explore the SoTA (state-of-the-art) LLM-based log anomaly detection models, and empirically evaluate & apply them under a real-time distributed environment.
+With this product, our goal is to leverage an ensemble of state-of-the-art LLM-based log anomaly detection models in streamlining an architecture capable of real-time anomaly detection.
 
-Specifically, this study can be broken down into 3 parts:
-1. Comprehensive evaluation of the models following Le & Zhang's work.
-2. Case study for real application within a real-time distributed system.
-3. Attempting to answer a few related research questions
+LogSense can be broken down into 3 parts:
 
-We selected 3 models as the focus of our study:
+1. Stream Processing
 
-1. LAnoBERT - BERT based [1]
-2. LogGPT - GPT based w/ reinforcement learning [2]
-3. RAPID - Retrieval-oriented (train-free) [3]
+2. Real-time Inferencing
 
-While the benchmarks provided in the original papers are quite convincing of their performance, we wanted to apply them under a less ideal, but highly realistic setting to fully test their capabilities. Overall, we wanted to gain a better understanding of how they could be integrated into existing production systems.
+3. HITL (Human-in-the-loop) Updating
 
-## Applications within distributed systems
+We selected 2 models as the focus of our study:
 
-With some inspiration from the HDFS [6] dataset, we hypothesize that similar performance could be achieved for similar distributed services by leveraging *session window grouping* [5]. This involves grouping logs based on session identifiers, such as node or block. 
+1. RAPID - Retrieval-oriented (train-free) [2]
 
-Following, we will construct a case study by demonstrating the application of the models real-time for a system of microservices and document relevant metrics such as inference times.
+2. LogGPT - GPT based w/ reinforcement learning [3]
 
-### Ensembling
+Our motivation for combining these models into an ensemble is rooted in the primary difference between them -- semantics.
 
-Throughout the course of this study, we wish to explore the effective of additional techniques to enable smooth online (real-time) detection using these models, especially **ensembling**.
+## Background
 
-An example ensembled prediction process we imagine could work:
+In an ideal world, humans would go through logs as they come in and quickly respond to anomalies they detect. It would be like standing on a shore and picking up any sea shells (anomalies) as the waves of logs come at you. Unfortunately, current system logs resemble less of a peaceful wave brushing your feet and more of a relentless tsunami mercilessly crashing into you. Dealing with this tsunami requires effective use of our more powerful weapon -- computing. 
 
-1. Initial fast detection with RAPID [3]
-2. Update confidence of detection results slowly by running an ensemble of LogGPT [2] and LAnoBERT [1]
+Traditionally, algorithms such as PCA, Decision Trees, and SVMs [3] defined boundaries or. common patterns the logs had to follow, but the emergence of language encoders shifted the discussion away from traditional rule definition towards NLP. Specifically, the effectiveness of BERT and GPT prompted log anomaly detection algorithms to leverage their power in encoding a log line.
 
-This attempts to reach a consensus between accuracy and real-time speed. 
+Subsequently, two schools of thought emerged when deciding how to encode logs -- tokenising and parsing [3]. Tokenising, which RAPID follows, is the process of regexing a log line and immediately encoding it. Regex preprocessing is the process of replacing any specifics in the log lines that are irrelevant to the inference process with general tokens such as NUM for numbers or IP for ip addresses. In contrast, LogGPT employs the parsing method. Given a sequence of log lines, LogGPT uses the Drain parser [5] to define unique log templates, also known as log keys, and assign each one to a log line in the sequence. This sequence of log keys is then encoded using a language model, such as GPT, in order to perform inference.
 
-## Empirical evaluation following Le & Zhang
+As the data progresses through the inference process, each model's distinctive treatment results in conclusions that are grounded in its unique reasoning. Namely, the treatment of semantics between the two models set them up to be the perfect pair.
 
-Le & Zhang's paper [5] conducted an intriguing and comprehensive analyis of the older models such as DeepLog and LogAnomaly by investigating their generalizable capabilities under different non-ideal experimental settings. This included:
-- Different data selection strategies
-- Varying imbalanced class distributions
-- Performance under X% of mislabeled logs
+## Semantics: Why these models form the perfect tandem
 
-The paper's findings reported several pending challenges when adapting to real-world systems:
-1. Available labeled data is limited
-2. Anomalies should be predicted as early as possible
-3. Logs are evolving alongside software
-4. Log parsing errors severely impact detection performance
+RAPID is fast and disregards semantics while LogGPT is slower and considers the semantic relations between logs. This is the one sentence short-and-sweet on how they're different, but let's explore why. As mentioned, RAPID encodes each log line individually, meaning the relations between logs is completely lost. If a new log's tokens differ too much from a known normal log that is closest to it in the embedding space, it's regarded as an anomaly -- a log's neighbors have no impact on it.
 
-With inspiration from the paper, we attempt to conduct a similar investigation on the three mentioned recent models by benchmarking under the experimental settings, incorporating the paper's *specificity* metric as well.
+On the other side, LogGPT uses the previous keys in the log sequence to predict the the next key. If this next key isn't in the top k predicted keys, it's regarded as an anomaly. One can immediately notice that the act of considering the past tokens to predict the next is a textbook example of incorporating semantics -- the relations between logs in the sequence is kept alive.
 
-## Research questions
+Why even use RAPID when LogGPT can consider semantics better? Speed. Although RAPID doesn't consider semantics, it still holds its own against LogGPT when it comes to accuracy. Its shortcomings in accounting for semantics are accounted for by the speed at which it delivers results. Since RAPID doesn't need to parse the logs or predict the next key for every key, it's very rapid (ha!). And this is where the ensemble technique comes in.
 
-As we conduct the case study and evaluation, we will attempt to try to answer some key questions with empirical data.
+The basic premise of the ensemble is as follows. When a new log is generated, RAPID immediately lets us know if it's anomalous or not. Once a group of logs have been generated in a time window, LogGPT uses its parsing and next-token prediction techniques to produce its own inference. This inference is either used to strengthen RAPID's decision or refute it. This way, users can first get quick responses that uses less information (RAPID) and get a stronger inference a little later (LogGPT). Speed first, accuracy next.
 
-### Pre-training applied on out-of-domain logs
+## Architecture Outline
 
-A challenge that remains is that these semi-supervised models must only be trained on normal data, thus requiring labels. In this domain, the number of labeled log datasets is rather scarce, so this problem becomes increasingly important to answer. 
+### 1. Stream Processing
 
-How well does pre-training on diverse log data generalize to different data? 
+After a node is connected to LogSense, it can process the node's logs in a streaming manner. The logs are first aggregated in Loki to be queried for context later on. They are then sent to a Kafka task queue that is distributed according to service (HDFS, BGL, Thunderbird, etc). This task queue is connected to a Flink listener which treats the data in a streaming manner, computing the tokens for each log line and sending them to the inferencing cluster. Throughout this process, the data is treated as a stream of water -- never stuck or stationary, always flowing forward.
 
-As RAPID and LAnoBERT rely on regex parsing to un-parameterize the log sequences, we wondered if simply introducing a more generic parser would offset the costs of compiling new regexes for each dataset. In general, we can't assume formats such as timestamps won't evolve over time.
+### 2. Real-time Inferencing
+
+Due to the immense amounts of data that needs to be inferenced, LogSense harnesses the power of horizontal scaling. Kubernetes is employed to open up new pods whenever necessary in order to serve the streaming data as efficiently as possible. Although the specifics regarding each model's inference algorithm isn't discussed here, we highly recommend the reader to read the original papers to gain a deeper understanding of the models [2][3]. The ensemble of the models is achieved by first sending RAPID's conclusion to the front-end to be displayed, while LogGPT is running in the background to produce its own conclusion. Once it finishes, it is also sent to the front-end, where the user confirms or denies additional anomalies LogGPT finds. Apache Kafka has the ability to orchestrate this intricate symphony, exploiting its distributed task queueing capabilities to efficiently handle the movement of the data throughout the architecture.
+
+### 3. HITL (Human-in-the-loop) Updating
+
+First off, its worth mentioning that to provide the models with initial information regarding the structure of normal logs, LogSense offers a Train Mode. When activated, train mode lets LogSense treat every generated log as normal, letting it seed the database of normal logs. These normal logs allow us to pretrain LogGPT and provide the initial data for RAPID to get a core set.
+
+Once displayed in the front end, users have the ability to refute any anomalies that they know are normal. If a displayed log is marked as normal, a service is triggered to delete that log from the anomaly database and treat it as a normal log for any future inferencing. This updating technique incorporates human feedback by allowing users to detect any false positives -- strengthening the accuracy of the architecture as a whole. The database of normal logs we conglomerate can be used to fine tune LogGPT every 24 hours, rendering a better model everyday.
+
+## Applications within Distributed Systems
+
+LogSense offers a significant advantage in its seamless integration with distributed systems. By effortlessly aggregating data from multiple configured nodes, LogSense becomes an invaluable tool within distributed system environments. One of the key challenges in distributed systems is the cumbersome task of monitoring logs across numerous nodes. LogSense effectively addresses this challenge by aggregating logs across all nodes of a service, streamlining the log tracking process. The stream processing capabilities of Apache Flink fuels LogSense's ability to process logs at scale. The distributed properties of Flink leads to efficient processing of large amounts of logs as they occur, meaning users can respond to any anomalies within seconds of their occurrence. Once configured with LogSense, each node can be identified by a metadata tag specifying its service (such as HDFS, BGL, etc.), ensuring uniform treatment across all nodes within the service. LogSense can also "plug and play" into existing observability setups that utilize Loki and Grafana by simply latching onto LogSense's Loki.
+
+## Monitoring
+
+LogSense's front-end allows users to not only understand their logs, but interact with them. Supporting multiple services means that LogSense lets users monitor the status of all of their configured nodes grouped by service. And, again, the users have final judgment when deciding if an anomaly is truly an anomaly. In our dashboard, users can view any log lines our ensemble predicted as anomalous and mark them as truly anomalous or actually normal. If the users would like further context on the log, they can click the "More Info" button that takes them to the Loki aggregation. Since LogSense tracks meta data for each log line, a unique log line is swiftly identified, enabling users to view other contextual logs. LogSense's dashboard is updated in real time due to LogSense's stream processing capabilities, which means that the doctors (programmers) can treat their patients (systems) in real time!
+
+## Further questions
+
+Although LogSense provides a usable platform for a majority of users, there remain questions regarding its implementation:
+
+- Can the theoretical tandem of RAPID and LogGPT prove effective in real world settings?
+
+- How can a dynamic threshold be implemented to let RAPID make better decisions as time goes on?
+
+- How can we guard against false negatives?
 
 ## Long Term
 
@@ -65,14 +78,12 @@ In the future, this study could introduce a brand new metric to test the viabili
 
 # Citations
 
-[1] Lee, Y., Kim, J., and Kang, P., “LAnoBERT: System Log Anomaly Detection based on BERT Masked Language Model”, <i>arXiv e-prints</i>, 2021. doi:10.48550/arXiv.2111.09564.
+[1] No, G., Lee, Y., Kang, H., and Kang, P., “RAPID: Training-free Retrieval-based Log Anomaly Detection with PLM considering Token-level information”, <i>arXiv e-prints</i>, 2023. doi:10.48550/arXiv.2311.05160.
 
 [2] Han, X., Yuan, S., and Trabelsi, M., “LogGPT: Log Anomaly Detection via GPT”, <i>arXiv e-prints</i>, 2023. doi:10.48550/arXiv.2309.14482.
 
-[3] No, G., Lee, Y., Kang, H., and Kang, P., “RAPID: Training-free Retrieval-based Log Anomaly Detection with PLM considering Token-level information”, <i>arXiv e-prints</i>, 2023. doi:10.48550/arXiv.2311.05160.
+[3] Landauer, M., Onder, S., Skopik, F., and Wurzenberger, M., “Deep Learning for Anomaly Detection in Log Data: A Survey”, <i>arXiv e-prints</i>, 2022. doi:10.48550/arXiv.2207.03820.
 
-[4] Landauer, M., Onder, S., Skopik, F., and Wurzenberger, M., “Deep Learning for Anomaly Detection in Log Data: A Survey”, <i>arXiv e-prints</i>, 2022. doi:10.48550/arXiv.2207.03820.
+[4] Le, V.-H. and Zhang, H., “Log-based Anomaly Detection with Deep Learning: How Far Are We?”, <i>arXiv e-prints</i>, 2022. doi:10.48550/arXiv.2202.04301.
 
-[5] Le, V.-H. and Zhang, H., “Log-based Anomaly Detection with Deep Learning: How Far Are We?”, <i>arXiv e-prints</i>, 2022. doi:10.48550/arXiv.2202.04301.
-
-[6] Zhu, J., He, S., He, P., Liu, J., and Lyu, M. R., “Loghub: A Large Collection of System Log Datasets for AI-driven Log Analytics”, <i>arXiv e-prints</i>, 2020. doi:10.48550/arXiv.2008.06448.
+[5] P. He, J. Zhu, Z. Zheng and M. R. Lyu, "Drain: An Online Log Parsing Approach with Fixed Depth Tree," <i>2017 IEEE International Conference on Web Services (ICWS)<i>, Honolulu, HI, USA, 2017, pp. 33-40, doi: 10.1109/ICWS.2017.13.
