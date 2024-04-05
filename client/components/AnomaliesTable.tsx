@@ -6,6 +6,7 @@ import { Layout } from "../components/Layout";
 import path from "path";
 import { trpc } from "../utils/trpc";
 import { useQueryClient } from "@tanstack/react-query";
+import { Duration } from "luxon";
 
 interface AnomalousLog {
     hash: string;
@@ -27,7 +28,7 @@ const dateFromUnix = (timestamp: number) => {
     return date.toLocaleString();
 };
 
-export const AnomaliesTable = ({ logs }: AnomaliesTableProps) => {
+const AnomalyRow = ({ log }: { log: AnomalousLog }) => {
     const queryClient = useQueryClient();
     const { mutate: markNormal } = trpc.log.markNormal.useMutation({
         onSuccess() {
@@ -39,7 +40,59 @@ export const AnomaliesTable = ({ logs }: AnomaliesTableProps) => {
             queryClient.invalidateQueries(["getNotes"]);
         },
     });
-    const rows = (logs || []).map((log) => (
+
+    const minusTimeRange = (timestamp: number, duration: Duration) => {
+        return timestamp - duration.as("milliseconds");
+    };
+
+    const plusTimeRange = (timestamp: number, duration: Duration) => {
+        return timestamp + duration.as("milliseconds");
+    };
+
+    const lokiDataSourceId = "fdhrn6s5cd62oa";
+    const panes = {
+        tr1: {
+            datasource: lokiDataSourceId,
+            queries: [
+                {
+                    refId: "A",
+                    expr: `{service="${log.service}", node="${log.node}", filename="${log.filename}"}`,
+                    queryType: "range",
+                    datasource: {
+                        type: "loki",
+                        uid: lokiDataSourceId,
+                    },
+                    editorMode: "builder",
+                    legendFormat: "",
+                },
+            ],
+            // TODO: Make context configurable
+            range: {
+                from: String(
+                    minusTimeRange(
+                        Number.parseInt(log.timestamp.toString().slice(0, 13)),
+                        Duration.fromObject({ hours: 1 })
+                    )
+                ),
+                to: String(
+                    plusTimeRange(
+                        Number.parseInt(log.timestamp.toString().slice(0, 13)),
+                        Duration.fromObject({ hours: 1 })
+                    )
+                ),
+            },
+        },
+    };
+
+    console.log(panes.tr1.range);
+
+    const params = new URLSearchParams();
+    params.set("orgId", "1");
+    params.set("schemaVersion", "1");
+    params.set("panes", JSON.stringify(panes));
+    const grafanaUrl = "http://localhost:3030/explore?" + params.toString();
+
+    return (
         <Table.Tr key={log.hash}>
             <Table.Td style={{ whiteSpace: "normal" }}>{log.service}</Table.Td>
             <Table.Td>{log.node}</Table.Td>
@@ -67,12 +120,18 @@ export const AnomaliesTable = ({ logs }: AnomaliesTableProps) => {
                 </Button>
             </Table.Td>
             <Table.Td>
-                <Button variant="light" color="cyan">
-                    Inspect
-                </Button>
+                <a href={grafanaUrl}>
+                    <Button variant="light" color="cyan">
+                        Inspect
+                    </Button>
+                </a>
             </Table.Td>
         </Table.Tr>
-    ));
+    );
+};
+
+export const AnomaliesTable = ({ logs }: AnomaliesTableProps) => {
+    const rows = (logs || []).map((log) => <AnomalyRow log={log} />);
 
     return (
         <Table verticalSpacing="md" className="w-full">
