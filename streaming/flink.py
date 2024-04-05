@@ -105,7 +105,7 @@ class RegexTokenize(MapFunction):
     def map(self, log_data):
         clean_log = regex_clean(log_data["original_text"], service=log_data['service'])
         sha256_hash = hashlib.sha256(clean_log.encode("utf-8")).digest()
-        hash_log = int.from_bytes(sha256_hash[:8], byteorder="big")
+        hash_log = str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         tokens = self.tokenizer(
             clean_log, padding="max_length", truncation=True, max_length=512
         )

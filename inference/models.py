@@ -1,18 +1,18 @@
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 from dataclasses import dataclass
 
 
 @dataclass
 class ServiceConfig:
-    mode: Literal["train", "test"]
+    is_train: bool
     threshold: float
-    coreset_number: int
+    coreset_size: int
 
     def from_dict(data):
         return ServiceConfig(
-            mode=data["mode"],
+            is_train=data["is_train"],
             threshold=data["threshold"],
-            coreset_number=data["coreset_number"]
+            coreset_size=data["coreset_size"]
         )
 
 @dataclass
@@ -30,29 +30,35 @@ class LogEvent:
     service: str
     node: str
     filename: str
-    text: str
-    tokens: dict
-    hash: int
+    original_text: str
+    cleaned_text: str
+    hash: str
     timestamp: int
+
+    tokens: Optional[dict] = None
 
     def from_dict(data):
         return LogEvent(
             service=data["service"],
             node=data["node"],
             filename=data["filename"],
-            text=data["text"],
+            original_text=data["original_text"],
+            cleaned_text=data["cleaned_text"],
             hash=data["hash"],
             timestamp=data["timestamp"],
-            tokens=data['tokens']
+            tokens=data.get("tokens", None)
         )
 
     def to_dict(self):
-        return {
+        log_dict = {
             "service": self.service,
             "node": self.node,
             "filename": self.filename,
-            "text": self.text,
+            "original_text": self.original_text,
+            "cleaned_text": self.cleaned_text,
             "hash": self.hash,
             "timestamp": self.timestamp,
-            "tokens": self.tokens
         }
+        if self.tokens is not None:
+            log_dict["tokens"] = self.tokens
+        return log_dict

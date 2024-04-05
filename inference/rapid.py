@@ -2,6 +2,7 @@ import logging
 from typing import Union
 import pandas as pd
 from kafka import KafkaProducer
+import qdrant_client
 from sklearn.metrics import classification_report
 from sklearn.metrics import precision_recall_curve, f1_score, roc_auc_score
 import numpy as np
@@ -13,6 +14,7 @@ import hashlib
 from qdrant_client.http.models import PointStruct
 from qdrant_client.http.models import Distance, VectorParams
 from tqdm.notebook import tqdm
+from inference import models
 
 from inference.models import GlobalConfig, LogEvent
 
@@ -67,7 +69,7 @@ class RapidInferenceAPI:
         cls_embedding = embedding[0, 0].numpy()
         token_embeddings = embedding[0, 1:].numpy().tolist()
         point = PointStruct(
-            id=log_event.hash,
+            id=int(log_event.hash),
             vector=cls_embedding,
             payload={"tokens": token_embeddings},
         )
@@ -86,21 +88,20 @@ class RapidInferenceAPI:
             point = self.add_log_to_collection(test_log, "test")
         else:
             logging.info("Fetching embedding from cache!")
-            point = point[0]
         return point
 
-    def get_score(self, log: LogEvent, core_set_size=2):
+    def get_score(self, log: LogEvent):
         logging.info('Scoring log..')
         embedding = self.get_sentence_embedding(log)[0]
         logging.info(f'Generating coreset..')
         core_set = self.client.search(
             collection_name=self.normal_collection_name,
             query_vector=embedding[0].numpy(),
-            limit=core_set_size,
+            limit=self.config.configs[self.service].coreset_size,
             with_payload=["cleaned_text", "tokens"],
             with_vectors=False,
         )
-        print([c.payload["text"] for c in core_set])
+        # logging.info(f'Found coreset: {" ".join([c.payload["text"] for c in core_set])}')
         logging.info(f'Found core set of length {len(core_set)}')
         logging.info('Calculating anomaly score..')
         anomaly_score = min(
@@ -108,20 +109,34 @@ class RapidInferenceAPI:
         )
         return anomaly_score
 
-    def log_exists_in_normal_col(self, hash: int):
+    def log_exists_in_normal_col(self, hash: str):
         return (
             self.client.retrieve(
                 collection_name=self.normal_collection_name,
-                ids=[hash],
+                ids=[int(hash)],
                 with_payload=False,
                 with_vectors=False,
             )
             != []
         )
 
-    def get_point_from_test_col(self, hash: int):
-        return self.client.retrieve(
-            collection_name="test", ids=[hash], with_payload=True, with_vectors=True
+    def get_point_from_test_col(self, hash: str):
+        record = self.client.retrieve(
+            collection_name="test", ids=[int(hash)], with_payload=True, with_vectors=True
+        )
+        if record:
+            record = record[0]
+            point = PointStruct(
+                id=record.id,
+                vector=record.vector,
+                payload=record.payload,
+            )
+            return point
+
+    def mark_normal(self, test_log: LogEvent):
+        point = self.get_embedding_test(test_log)
+        self.client.upsert(
+            collection_name="normal", points=[point]
         )
 
     # Entrypoint
@@ -131,11 +146,12 @@ class RapidInferenceAPI:
             logging.info("Log already exists in normal db!")
             return
         point = self.get_embedding_test(test_log)
-        if self.config.configs[self.service].mode == "train":
+        if self.config.configs[self.service].is_train:
             logging.info("Adding to normal db..")
             self.client.upsert(
                 collection_name="normal", points=[point]
-            )  # NOTE: will exist in both test and normal collection (optimize later?)
+            )
+            return
 
         score = self.get_score(test_log)
         logging.info(f"Score: {score}")

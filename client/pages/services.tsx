@@ -1,44 +1,44 @@
+import { z } from "zod";
+import {
+    ActionIcon,
+    Button,
+    Modal,
+    NumberInput,
+    Select,
+    Switch,
+    TextInput,
+} from "@mantine/core";
 import { Layout } from "../components/Layout";
+import { ListServices } from "../components/ListServices";
+import { AddService } from "../components/AddServiceModal";
 import { NavbarSimple } from "../components/NavbarSimple";
 import { ServiceCard } from "../components/ServiceCard";
-
-const services = [
-  {
-    name: "HDFS",
-    description: "Hadoop Distributed File System",
-    mode: "train",
-    threshold: -470.8,
-    coresetNumber: 2,
-  },
-  {
-    name: "Linux",
-    description: "Linux logs from various nodes in AWS cloud",
-    mode: "test",
-    threshold: -340.2,
-    coresetNumber: 10,
-  },
-];
-
-const ServiceList = () => {
-  return (<div className="grid grid-cols-3 gap-6">
-    {
-        services.map(service => {
-            return (
-                <ServiceCard service={service} />
-            );
-        })
-    }
-
-  </div>);
-};
+import { IconPlus } from "@tabler/icons-react";
+import { useDisclosure } from "@mantine/hooks";
+import { useForm, zodResolver } from "@mantine/form";
+import { useQueryClient } from "@tanstack/react-query";
+import { trpc } from "../utils/trpc";
 
 const ManageServices = () => {
-  return (
-    <div>
-      <h1>Manage Services</h1>
-      <ServiceList />
-    </div>
-  );
+    const [opened, { open, close }] = useDisclosure(false);
+    return (
+        <div>
+            <div className="flex gap-8 align-middle items-center">
+                <h1>Manage Services</h1>
+                <ActionIcon
+                    variant="gradient"
+                    size="xl"
+                    aria-label="Gradient action icon"
+                    gradient={{ from: "blue", to: "cyan", deg: 90 }}
+                    onClick={open}
+                >
+                    <IconPlus />
+                </ActionIcon>
+            </div>
+            <AddService opened={opened} open={open} close={close} />
+            <ListServices />
+        </div>
+    );
 };
 
 export default ManageServices;

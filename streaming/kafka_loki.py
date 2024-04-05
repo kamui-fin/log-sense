@@ -49,7 +49,7 @@ async def main():
     async with asyncio.TaskGroup() as tg:
         for service in SERVICES:
             query = quote(f'{{service="{service}"}}')
-            uri = f"{LOKI_ENDPOINT}?query={query}&limit=100&delay_for=0"
+            uri = f"{LOKI_ENDPOINT}?query={query}&limit=1&delay_for=0"
             tg.create_task(tail_loki(uri))
 
 

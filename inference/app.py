@@ -1,3 +1,5 @@
+import pprint
+import requests
 import sys
 import os
 
@@ -18,15 +20,27 @@ client = QdrantClient("localhost", port=6333)
 
 logging.basicConfig(level=logging.INFO)
 
-def get_config(base_url = '') -> GlobalConfig:
+def get_config(base_url = 'http://localhost:3000') -> GlobalConfig:
     # GET request to config microservice
     # for now, let's mock it out
-    return GlobalConfig(configs={'service1': ServiceConfig(mode="test", threshold=-481.175, coreset_number=2)})
+    # return GlobalConfig(configs={'service1': ServiceConfig(mode="test", threshold=-481.175, coreset_number=2)})
+    
+    # GET to http://localhost:3000/api/trpc/config.getServices
+    response = requests.get(f'{base_url}/api/trpc/config.getServices').json()
+    service_list = response['result']['data']['json']['data']
+    configs = {}
+    for service in service_list:
+        configs[service['name']] = ServiceConfig(
+            is_train=service['isTrain'],
+            threshold=service['threshold'],
+            coreset_size=service['coresetSize']
+        )
+    return GlobalConfig(configs=configs)
 
 
 def listen_inference(svc):
     consumer = KafkaConsumer(
-        f"{svc}-processed", "config-change",
+        f"{svc}-processed", "config-change", "mark-normal",
         bootstrap_servers=["localhost:9092"],
         group_id="inference-group",
         auto_offset_reset="latest",
@@ -34,19 +48,26 @@ def listen_inference(svc):
         value_deserializer=lambda x: json.loads(x.decode("utf-8")),
     )
     config = get_config()
+    if svc not in config.configs:
+        logging.error(f'No config found for service "{svc}"')
+        return
     logging.info(f'Inference service "{svc}" started')
     logging.info(f'Using previous config {config}')
     inferencer = RapidInferenceAPI(client, svc, config)
     for message in consumer:
         if message.topic == "config-change":
-            config_update = GlobalConfig.from_dict(message.value)
-            logging.info(f'Received config update: {config_update}')
+            new_config = get_config()
+            logging.info(f'Received config update: {new_config}')
             logging.info(f'Old config: {inferencer.config}')
-            inferencer.reload_config(config_update)
+            inferencer.reload_config(new_config)
             logging.info(f'New config: {inferencer.config}')
         else:
             event = LogEvent.from_dict(message.value)
             logging.info(f"Received log: {event}")
+            if message.topic == "mark-normal":
+                logging.info(f"Marking event as normal: {event}")
+                inferencer.mark_normal(event)
+                continue
             result = inferencer.run_inference(event)
             if result is None:
                 continue
