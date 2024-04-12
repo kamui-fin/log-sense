@@ -14,7 +14,7 @@ import {
 import classes from "./ServiceCard.module.css";
 import { Switch } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { trpc } from "../utils/trpc";
+import { trpc } from "../../../utils/trpc";
 import { z } from "zod";
 import { Update } from "next/dist/build/swc";
 

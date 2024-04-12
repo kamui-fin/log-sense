@@ -1,7 +1,7 @@
 import { useForm, zodResolver } from "@mantine/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { trpc } from "../utils/trpc";
+import { trpc } from "../../../utils/trpc";
 import { Button, Modal, NumberInput, Switch, TextInput } from "@mantine/core";
 
 const createServiceSchema = z.object({

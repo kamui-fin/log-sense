@@ -8,11 +8,11 @@ import {
     Switch,
     TextInput,
 } from "@mantine/core";
-import { Layout } from "../components/Layout";
-import { ListServices } from "../components/ListServices";
-import { AddService } from "../components/AddServiceModal";
-import { NavbarSimple } from "../components/NavbarSimple";
-import { ServiceCard } from "../components/ServiceCard";
+import { Layout } from "../ui/Layout";
+import { ListServices } from "../ui/components/services/ListServices";
+import { AddService } from "../ui/components/services/AddServiceModal";
+import { NavbarSimple } from "../ui/components/nav/NavbarSimple";
+import { ServiceCard } from "../ui/components/services/ServiceCard";
 import { IconPlus } from "@tabler/icons-react";
 import { useDisclosure } from "@mantine/hooks";
 import { useForm, zodResolver } from "@mantine/form";

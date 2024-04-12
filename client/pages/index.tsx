@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { AnomaliesTable } from "../components/AnomaliesTable";
-import { LogPrediction } from "../server/routers/log";
+import { AnomaliesTable } from "../ui/components/dashboard/AnomaliesTable";
+import { RapidLogPrediction } from "../server/routers/log";
 import { trpc } from "../utils/trpc";
 import { useState } from "react";
 
@@ -10,7 +10,11 @@ export default function Home() {
         staleTime: 5 * 1000,
         select: (data) => data?.data,
     });
-    console.log(logs);
+
+    const { gptLogs, rapidLogs } = logs?.data ?? {
+        gptLogs: [],
+        rapidLogs: [],
+    };
 
     trpc.log.onAdd.useSubscription(undefined, {
         onData(log) {
@@ -20,7 +24,7 @@ export default function Home() {
     return (
         <>
             <h1>Pending Anomalies</h1>
-            <AnomaliesTable logs={logs} />
+            <AnomaliesTable gptLogs={gptLogs} rapidlogs={rapidLogs} />
         </>
     );
 }

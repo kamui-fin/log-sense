@@ -1,26 +1,21 @@
 import Image from "next/image";
 import { Inter } from "next/font/google";
-import { NavbarSimple } from "../components/NavbarSimple";
+import { NavbarSimple } from "../nav/NavbarSimple";
 import { Button, Code, Table } from "@mantine/core";
-import { Layout } from "../components/Layout";
+import { Layout } from "../../Layout";
 import path from "path";
-import { trpc } from "../utils/trpc";
+import { trpc } from "../../../utils/trpc";
 import { useQueryClient } from "@tanstack/react-query";
 import { Duration } from "luxon";
-
-interface AnomalousLog {
-    hash: string;
-    service: string;
-    node: string;
-    filename: string;
-    original_text: string;
-    timestamp: number;
-    cleaned_text: string;
-    score: number;
-}
+import { RapidLog } from "../../../server/models/rapid_log";
+import { GptLog } from "../../../server/models/gpt_log";
+import {
+    BaseLogEvent,
+    UnionAnomalousLog,
+} from "@/components/server/routers/log";
 
 interface AnomaliesTableProps {
-    logs: AnomalousLog[];
+    anomalies: UnionAnomalousLog[];
 }
 
 const dateFromUnix = (timestamp: number) => {
@@ -28,16 +23,16 @@ const dateFromUnix = (timestamp: number) => {
     return date.toLocaleString();
 };
 
-const AnomalyRow = ({ log }: { log: AnomalousLog }) => {
+const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
     const queryClient = useQueryClient();
     const { mutate: markNormal } = trpc.log.markNormal.useMutation({
         onSuccess() {
-            queryClient.invalidateQueries(["getNotes"]);
+            queryClient.invalidateQueries(["getLogs"]);
         },
     });
-    const { mutate: deleteLog } = trpc.log.delete.useMutation({
+    const { mutate: confirmAnomaly } = trpc.log.confirmAnomaly.useMutation({
         onSuccess() {
-            queryClient.invalidateQueries(["getNotes"]);
+            queryClient.invalidateQueries(["getLogs"]);
         },
     });
 
@@ -70,21 +65,23 @@ const AnomalyRow = ({ log }: { log: AnomalousLog }) => {
             range: {
                 from: String(
                     minusTimeRange(
-                        Number.parseInt(log.timestamp.toString().slice(0, 13)),
+                        Number.parseInt(
+                            log.startTimestamp.toString().slice(0, 13)
+                        ),
                         Duration.fromObject({ hours: 1 })
                     )
                 ),
                 to: String(
                     plusTimeRange(
-                        Number.parseInt(log.timestamp.toString().slice(0, 13)),
+                        Number.parseInt(
+                            log.endTimestamp.toString().slice(0, 13)
+                        ),
                         Duration.fromObject({ hours: 1 })
                     )
                 ),
             },
         },
     };
-
-    console.log(panes.tr1.range);
 
     const params = new URLSearchParams();
     params.set("orgId", "1");
@@ -95,17 +92,22 @@ const AnomalyRow = ({ log }: { log: AnomalousLog }) => {
     return (
         <Table.Tr key={log.hash}>
             <Table.Td style={{ whiteSpace: "normal" }}>{log.service}</Table.Td>
-            <Table.Td>{log.node}</Table.Td>
-            <Table.Td>{path.basename(log.filename)}</Table.Td>
-            <Table.Td>{dateFromUnix(log.timestamp)}</Table.Td>
+            <Table.Td>{log.nodes[0]}</Table.Td>
+            <Table.Td>{path.basename(log.uniqueFilenames[0])}</Table.Td>
+            <Table.Td>{dateFromUnix(log.endTimestamp)}</Table.Td>
             <Table.Td>
-                <Code>{log.original_text}</Code>
+                <Code>{log.text}</Code>
             </Table.Td>
             <Table.Td>
                 <Button
                     variant="light"
                     color="green"
-                    onClick={() => markNormal(log.hash)}
+                    onClick={() =>
+                        markNormal({
+                            type: log.type,
+                            _id: log.id,
+                        })
+                    }
                 >
                     Mark Normal
                 </Button>
@@ -114,7 +116,12 @@ const AnomalyRow = ({ log }: { log: AnomalousLog }) => {
                 <Button
                     variant="filled"
                     color="red"
-                    onClick={() => deleteLog(log.hash)}
+                    onClick={() =>
+                        confirmAnomaly({
+                            _id: log.id,
+                            type: log.type,
+                        })
+                    }
                 >
                     Confirm
                 </Button>
@@ -129,9 +136,10 @@ const AnomalyRow = ({ log }: { log: AnomalousLog }) => {
         </Table.Tr>
     );
 };
-
-export const AnomaliesTable = ({ logs }: AnomaliesTableProps) => {
-    const rows = (logs || []).map((log) => <AnomalyRow log={log} />);
+export const AnomaliesTable = ({ anomalies }: AnomaliesTableProps) => {
+    const rows = (anomalies || []).map((log, index) => (
+        <AnomalyRow key={index} log={log} />
+    ));
 
     return (
         <Table verticalSpacing="md" className="w-full">

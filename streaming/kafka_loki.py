@@ -19,7 +19,7 @@ def shorten_timestamp(timestamp):
 async def tail_loki(uri):
     # FIXME: Tail timeouts after 1hr
     async with websockets.connect(uri) as websocket:
-        logging.info(f'Successfully connected to {uri}')
+        logging.info(f"Successfully connected to {uri}")
         while True:
             logs = json.loads(await websocket.recv())
             streams = logs["streams"]
@@ -38,11 +38,12 @@ async def tail_loki(uri):
                         "timestamp": timestamp,
                         "service": service,
                         "original_text": log,
+                        "force_normal": False,
                     }
-                    print(f'Recieved loki entry: {kafka_entry}')
+                    print(f"Recieved loki entry: {kafka_entry}")
                     kafka_entry_ser = json.dumps(kafka_entry).encode("utf-8")
                     producer.send(service, kafka_entry_ser)
-                    print(f'Sent to kafka!')
+                    print(f"Sent to kafka!")
 
 
 async def main():

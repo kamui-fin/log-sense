@@ -1,64 +1,51 @@
 from typing import Dict, List, Literal, Optional
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 
 
+@dataclass_json
 @dataclass
 class ServiceConfig:
     is_train: bool
     threshold: float
     coreset_size: int
 
-    def from_dict(data):
-        return ServiceConfig(
-            is_train=data["is_train"],
-            threshold=data["threshold"],
-            coreset_size=data["coreset_size"]
-        )
 
+@dataclass_json
 @dataclass
 class GlobalConfig:
     configs: Dict[str, ServiceConfig]
 
-    def from_dict(data):
-        return GlobalConfig(
-            configs={name: ServiceConfig.from_dict(config) for name, config in data.items()}
-        )
 
-
+@dataclass_json
 @dataclass
-class LogEvent:
+class BaseLogEvent:
     service: str
     node: str
     filename: str
     original_text: str
+    timestamp: int
     cleaned_text: str
     hash: str
-    timestamp: int
 
-    tokens: Optional[dict] = None
 
-    def from_dict(data):
-        return LogEvent(
-            service=data["service"],
-            node=data["node"],
-            filename=data["filename"],
-            original_text=data["original_text"],
-            cleaned_text=data["cleaned_text"],
-            hash=data["hash"],
-            timestamp=data["timestamp"],
-            tokens=data.get("tokens", None)
-        )
+@dataclass_json
+@dataclass
+class RapidLogEvent(BaseLogEvent):
+    tokens: dict
 
-    def to_dict(self):
-        log_dict = {
-            "service": self.service,
-            "node": self.node,
-            "filename": self.filename,
-            "original_text": self.original_text,
-            "cleaned_text": self.cleaned_text,
-            "hash": self.hash,
-            "timestamp": self.timestamp,
-        }
-        if self.tokens is not None:
-            log_dict["tokens"] = self.tokens
-        return log_dict
+
+@dataclass_json
+@dataclass
+class LogGPTProcessedInput:
+    input_ids: List[int]
+    attention_mask: List[int]
+    labels: List[int]
+
+
+@dataclass_json
+@dataclass
+class LogSequenceEvent:
+    hashes: List[str]
+    chunk: List[LogGPTProcessedInput]
+    original_logs: List[List[BaseLogEvent]]

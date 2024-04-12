@@ -1,4 +1,4 @@
-import { NavbarSimple } from "./NavbarSimple";
+import { NavbarSimple } from "./components/nav/NavbarSimple";
 
 interface LayoutProps {
     children: React.ReactNode;

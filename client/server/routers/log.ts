@@ -1,68 +1,211 @@
 import { observable } from "@trpc/server/observable";
-import { Log, LogModel } from "../models/anomalyLog";
+import { RapidLog, RapidLogModel } from "../models/rapid_log";
 import { publicProcedure, router } from "../trpc";
 import { z } from "zod";
 import { eventEmitter } from "../stream";
 import { Context } from "../_app";
 import { Producer } from "kafkajs";
+import { GptLogModel } from "../models/gpt_log";
+import { ObjectId } from "mongoose";
+import * as mongoose from "mongoose";
 
-// TODO: fix schema for service config
-
-export interface LogPrediction {
-    score: number;
-    is_anomaly: boolean;
-    original_text: string;
-    cleaned_text: string;
-    hash: string; // truncated SHA hash of cleaned_text
-    timestamp: number;
-    filename: string; // full path
+export interface BaseLogEvent {
     service: string;
     node: string;
+    timestamp: number;
+    filename: string; // full path
+    hash: string; // truncated SHA hash of cleaned_text
+    cleaned_text: string;
+    original_text: string;
+}
+
+interface GptProcessedInput {
+    input_ids: number[];
+    attention_mask: number[];
+    labels: number[];
+}
+
+export interface GptLogPrediction {
+    chunks: GptProcessedInput;
+    original_logs: BaseLogEvent[];
+    hash: string;
+    type: "log_gpt";
+}
+
+export interface RapidLogPrediction extends BaseLogEvent {
+    score: number;
+    is_anomaly: boolean;
+    type: "rapid";
+}
+
+// we need an intermediary type to handle the union of rapid and gpt logs
+export interface UnionAnomalousLog {
+    type: "rapid" | "log_gpt";
+    id: string; // point to rapid _id or the window id for log_gpt
+    // global hash in case of gpt over the entire window text
+    hash: string;
+    service: string; // a window log
+    nodes: string[]; // wait it could be multiple nodes if we're using traces
+    uniqueFilenames: string[]; // we could have multiple files in a window
+    startTimestamp: number;
+    endTimestamp: number;
+    text: string; // for window, we just \n join
 }
 
 const getLogsController = async () => {
     try {
-        const logs = await LogModel.find();
-        console.log(logs);
+        // Query rapid and log_gpt collections s.t is_anomaly = true and sort by decreasing timestamp
+        const rapidLogs = await RapidLogModel.find({
+            is_anomaly: true,
+        }).sort({ timestamp: -1 });
+
+        const gptLogs = await GptLogModel.find(
+            {
+                is_anomaly: true,
+            },
+            { _id: 1, original_logs: 1 }
+        ).sort({ timestamp: -1 });
+
+        const rapidOriginalLogs = rapidLogs.map((rapidLog) => {
+            const service = rapidLog.service;
+            const nodes = [rapidLog.node];
+            const uniqueFilenames = [rapidLog.filename];
+            const startTimestamp = rapidLog.timestamp;
+            const endTimestamp = rapidLog.timestamp;
+
+            const id = rapidLog._id.toString();
+            const hash = rapidLog.hash;
+            const text = rapidLog.original_text;
+
+            const log: UnionAnomalousLog = {
+                id,
+                type: "rapid",
+                hash,
+                service,
+                nodes,
+                uniqueFilenames,
+                startTimestamp,
+                endTimestamp,
+                text,
+            };
+
+            return log;
+        });
+        const gptOriginalLogs = gptLogs.flatMap((window) => {
+            const text = window.original_logs
+                .map((log) => log.original_text)
+                .join("\n");
+            const service = window.original_logs[0].service;
+            const nodes = Array.from(
+                new Set(window.original_logs.map((log) => log.node))
+            );
+            const uniqueFilenames = Array.from(
+                new Set(window.original_logs.map((log) => log.filename))
+            );
+            const startTimestamp = window.original_logs[0].timestamp;
+            const endTimestamp =
+                window.original_logs[window.original_logs.length - 1].timestamp;
+
+            const id = window._id.toString();
+            const hash = window.hash;
+
+            const log: UnionAnomalousLog = {
+                id,
+                type: "log_gpt",
+                hash,
+                service,
+                nodes,
+                uniqueFilenames,
+                startTimestamp,
+                endTimestamp,
+                text,
+            };
+
+            return log;
+        });
+        const anomalies = [...rapidOriginalLogs, ...gptOriginalLogs].sort(
+            (a, b) => b.endTimestamp - a.endTimestamp
+        );
+
         return {
             status: "OK",
-            data: logs,
+            data: anomalies,
         };
     } catch (error) {
         console.error(error);
     }
 };
 
-const deleteController = async (hash: string) => {
+const markNormalController = async (
+    _id: string,
+    type: "rapid" | "log_gpt",
+    producer: Producer
+) => {
     try {
-        const result = await LogModel.deleteOne({ hash });
-        return {
-            status: "OK",
-            data: result,
-        };
-    } catch (error) {
-        console.error(error);
-    }
-};
+        let updateResult;
+        if (type === "log_gpt") {
+            // For LogGPT: we must also mark it for finetuning
+            updateResult = await GptLogModel.updateOne(
+                { _id },
+                { is_anomaly: false, train_strategy: "finetune" }
+            );
+        } else {
+            updateResult = await RapidLogModel.updateOne(
+                { _id },
+                { is_anomaly: false }
+            );
 
-const markNormalController = async (hash: string, producer: Producer) => {
-    try {
-        const log = await LogModel.findOne({ hash });
-        if (!log) {
+            // Only for RAPID: send to mark-normal topic for instant training
+            const log = await RapidLogModel.findOne({ _id });
+            const message = {
+                value: JSON.stringify(log),
+            };
+            producer.send({ topic: "mark-normal", messages: [message] });
+        }
+
+        if (updateResult.modifiedCount === 0) {
             return {
                 status: "ERROR",
-                message: "Log not found",
+                message: "No document found",
             };
         }
-        await LogModel.deleteOne({ hash });
-        // send to kafka topic for marking normal
-        const message = {
-            value: JSON.stringify(log),
-        };
-        producer.send({ topic: "mark-normal", messages: [message] });
-
         return {
             status: "OK",
+            data: updateResult,
+        };
+    } catch (error) {
+        console.error(error);
+    }
+};
+
+// confirm anomaly controller simply marks the prompt_user flag to false depending on the type of model
+const confirmAnomalyController = async (
+    _id: string,
+    type: "rapid" | "log_gpt"
+) => {
+    try {
+        let updateResult;
+        if (type === "log_gpt") {
+            updateResult = await GptLogModel.updateOne(
+                { _id },
+                { prompt_user: false }
+            );
+        } else {
+            updateResult = await RapidLogModel.updateOne(
+                { _id },
+                { prompt_user: false }
+            );
+        }
+
+        if (updateResult.modifiedCount === 0) {
+            return {
+                status: "ERROR",
+                message: "No document found",
+            };
+        }
+        return {
+            status: "OK",
+            data: updateResult,
         };
     } catch (error) {
         console.error(error);
@@ -71,18 +214,30 @@ const markNormalController = async (hash: string, producer: Producer) => {
 
 export const logRouter = router({
     getAll: publicProcedure.query(getLogsController),
-    markNormal: publicProcedure
-        .input(z.string())
-        .mutation(async ({ input, ctx }) =>
-            markNormalController(input, ctx.kafkaProducer)
+    confirmAnomaly: publicProcedure
+        .input(
+            z.object({
+                _id: z.string(),
+                type: z.union([z.literal("rapid"), z.literal("log_gpt")]),
+            })
+        )
+        .mutation(async ({ input }) =>
+            confirmAnomalyController(input._id, input.type)
         ),
-    delete: publicProcedure
-        .input(z.string())
-        .mutation(async ({ input }) => deleteController(input)),
+    markNormal: publicProcedure
+        .input(
+            z.object({
+                _id: z.string(),
+                type: z.union([z.literal("rapid"), z.literal("log_gpt")]),
+            })
+        )
+        .mutation(async ({ input, ctx }) =>
+            markNormalController(input._id, input.type, ctx.kafkaProducer)
+        ),
     onAdd: publicProcedure.subscription(() => {
         console.log("Requesting subscription");
-        return observable<LogPrediction>((emit) => {
-            const onAdd = (data: LogPrediction) => {
+        return observable<RapidLogPrediction | GptLogPrediction>((emit) => {
+            const onAdd = (data: RapidLogPrediction | GptLogPrediction) => {
                 console.log(data);
                 emit.next(data);
             };
