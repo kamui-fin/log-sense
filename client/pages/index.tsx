@@ -13,12 +13,13 @@ export default function Home() {
 
   trpc.log.onAdd.useSubscription(undefined, {
     onData(log) {
+      console.log(log);
       queryClient.invalidateQueries(["getLogs"]);
     },
   });
   return (
     <>
-      <h1>Pending Anomalies</h1>
+      <h1>Pending Anoualies</h1>
       <AnomaliesTable anomalies={anomalies} />
     </>
   );

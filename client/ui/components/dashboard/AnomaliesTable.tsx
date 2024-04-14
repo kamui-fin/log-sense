@@ -44,14 +44,16 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
     return timestamp + duration.as("milliseconds");
   };
 
-  const lokiDataSourceId = "fdhrn6s5cd62oa";
+  const lokiDataSourceId = "adioh7pfmw7i8b"; // TODO: Make this configurable
   const panes = {
     tr1: {
       datasource: lokiDataSourceId,
       queries: [
         {
           refId: "A",
-          expr: `{service="${log.service}", node="${log.node}", filename="${log.filename}"}`,
+          expr: `{service="${log.service}", node="${log.nodes.join(
+            "|"
+          )}", filename="${log.uniqueFilenames.join("|")}"}`,
           queryType: "range",
           datasource: {
             type: "loki",
@@ -78,6 +80,8 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
       },
     },
   };
+
+  console.log(panes.tr1.queries[0].expr);
 
   const params = new URLSearchParams();
   params.set("orgId", "1");

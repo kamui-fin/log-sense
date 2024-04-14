@@ -136,7 +136,7 @@ def load_hdfs(hdfs_data_dir, cache_file: Path):
         hdfs_data_dir / "cache_no_regex.csv",
         True,
     )
-    df = hdfs.df.drop(columns=["BlockId"])  # TODO: refactor
+    df = hdfs.df.drop(columns=["BlockId"])
     num_clusters = drain_cluster(df["line"])
     # Concatenate log keys per block
     grouped_log_keys = df.groupby("block_id")["line"].apply(

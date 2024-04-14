@@ -36,7 +36,7 @@ export interface UnionAnomalousLog {
   text: string; // for window, we just \n join
 }
 
-const rapidToUnified = (rapidLog: RapidLog): UnionAnomalousLog => {
+export const rapidToUnified = (rapidLog: RapidLog): UnionAnomalousLog => {
   const service = rapidLog.service;
   const nodes = [rapidLog.node];
   const uniqueFilenames = [rapidLog.filename];
@@ -62,7 +62,9 @@ const rapidToUnified = (rapidLog: RapidLog): UnionAnomalousLog => {
   return log;
 };
 
-const logGptToUnified = (window: GptLogPrediction): UnionAnomalousLog => {
+export const logGptToUnified = (
+  window: GptLogPrediction
+): UnionAnomalousLog => {
   const text = window.original_logs.map((log) => log.original_text).join("\n");
   const service = window.original_logs[0].service;
   const nodes = Array.from(
@@ -98,6 +100,7 @@ const getLogsController = async () => {
     // Query rapid and log_gpt collections s.t is_anomaly = true and sort by decreasing timestamp
     const rapidLogs = await RapidLogModel.find({
       is_anomaly: true,
+      prompt_user: true,
     }).sort({ timestamp: -1 });
 
     const gptLogs: GptLogPrediction[] = await GptLogModel.find(
@@ -172,6 +175,7 @@ const confirmAnomalyController = async (
   try {
     let updateResult;
     if (type === "log_gpt") {
+      console.log(_id);
       updateResult = await GptLogModel.updateOne(
         { _id },
         { prompt_user: false }

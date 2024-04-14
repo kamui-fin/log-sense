@@ -1,6 +1,11 @@
 import EventEmitter from "events";
 import { Kafka } from "kafkajs";
-import { RapidLogPrediction, GptLogPrediction } from "./routers/log";
+import {
+  RapidLogPrediction,
+  GptLogPrediction,
+  rapidToUnified,
+  logGptToUnified,
+} from "./routers/log";
 import { RapidLogModel } from "./models/rapid_log";
 import dbConnect from "./db";
 import { GptLogModel } from "./models/gpt_log";
@@ -36,26 +41,26 @@ export const initKafkaListener = async () => {
         message.value.toString()
       );
       // handle rapid specific logic here
-      let newLog;
       let unifiedNewLog;
       if (logPrediction.is_anomaly && logPrediction.type === "rapid") {
         const prediction: RapidLogPrediction = JSON.parse(
           message.value.toString()
         );
         console.log(`Anomaly detected: ${prediction.cleaned_text}`);
-        newLog = new RapidLogModel({ ...prediction });
+        const newLog = new RapidLogModel({ ...prediction });
+        const savedLog = await newLog.save();
+        unifiedNewLog = rapidToUnified(savedLog);
       } else if (logPrediction.type === "log_gpt") {
-        console.log(JSON.parse(message.value.toString()));
-        newLog = new GptLogModel(JSON.parse(message.value.toString()));
-        console.log(newLog);
+        const newLog = new GptLogModel(JSON.parse(message.value.toString()));
+        const savedLog = await newLog.save();
+        unifiedNewLog = logGptToUnified(savedLog);
       } else {
         console.error("Invalid log prediction type");
         return;
       }
-      const savedLog = await newLog.save();
-
+      console.log(unifiedNewLog);
       // notify all currently connected subscribers of the update
-      eventEmitter.emit("add", savedLog);
+      eventEmitter.emit("add", unifiedNewLog);
     },
   });
 };
