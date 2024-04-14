@@ -20,7 +20,7 @@ const consumer = kafka.consumer({ groupId: "logsense-client" }); // TODO: resear
 
 // typescript type where we only know that "type": "rapid" | "gpt"
 interface BaseLogPrediction {
-  type: "rapid" | "gpt";
+  type: "rapid" | "log_gpt";
   is_anomaly: boolean;
 }
 
@@ -37,18 +37,23 @@ export const initKafkaListener = async () => {
       );
       // handle rapid specific logic here
       let newLog;
+      let unifiedNewLog;
       if (logPrediction.is_anomaly && logPrediction.type === "rapid") {
-        const prediction = logPrediction as RapidLogPrediction;
+        const prediction: RapidLogPrediction = JSON.parse(
+          message.value.toString()
+        );
         console.log(`Anomaly detected: ${prediction.cleaned_text}`);
         newLog = new RapidLogModel({ ...prediction });
-      } else if (logPrediction.type === "gpt") {
-        const prediction = logPrediction as GptLogPrediction;
-        newLog = new GptLogModel({ ...prediction });
+      } else if (logPrediction.type === "log_gpt") {
+        console.log(JSON.parse(message.value.toString()));
+        newLog = new GptLogModel(JSON.parse(message.value.toString()));
+        console.log(newLog);
       } else {
         console.error("Invalid log prediction type");
         return;
       }
       const savedLog = await newLog.save();
+
       // notify all currently connected subscribers of the update
       eventEmitter.emit("add", savedLog);
     },

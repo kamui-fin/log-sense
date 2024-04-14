@@ -46,9 +46,6 @@ from pyflink.datastream.connectors.kafka import (
     DeliveryGuarantee,
 )
 
-from streaming.utils import JSONSerializationSchema, LogTimestampAssigner, regex_clean
-
-
 class RegexTokenize(MapFunction):
     def __init__(self) -> None:
         super().__init__()

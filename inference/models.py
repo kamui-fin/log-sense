@@ -34,6 +34,10 @@ class BaseLogEvent:
 class RapidLogEvent(BaseLogEvent):
     tokens: dict
 
+@dataclass_json
+@dataclass
+class GptLogEvent(BaseLogEvent):
+    train_strategy: str
 
 @dataclass_json
 @dataclass
@@ -47,5 +51,5 @@ class LogGPTProcessedInput:
 @dataclass
 class LogSequenceEvent:
     hashes: List[str]
-    chunk: List[LogGPTProcessedInput]
-    original_logs: List[List[BaseLogEvent]]
+    chunks: List[LogGPTProcessedInput]
+    original_logs: List[List[GptLogEvent]]

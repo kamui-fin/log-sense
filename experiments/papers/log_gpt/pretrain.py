@@ -56,7 +56,7 @@ def pretrain_model(train_df, vocab_size, output_path):
             train_loss += loss.item()
             optimizer.step()
 
-        train_loss /= len(val_dataloader)
+        train_loss /= len(train_dataloader)
         print(f"Epoch {epoch+1}/{num_epochs}, Training Loss: {train_loss / len(batch)}")
 
         model.eval()

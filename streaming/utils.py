@@ -1,4 +1,7 @@
+import re
 import json 
+from pyflink.common.watermark_strategy import TimestampAssigner
+from pyflink.common.serialization import SimpleStringSchema
 
 class LogTimestampAssigner(TimestampAssigner):
     def extract_timestamp(self, log_data, record_timestamp) -> int:
@@ -15,7 +18,7 @@ class JSONDeserializationSchema(SimpleStringSchema):
         return json.loads(message)
 
 # currently only hardcoded
-def regex_clean(line, service):
+def regex_clean(line):
     # blk_regex = re.compile("blk_-?\d+")
     # ip_regex = re.compile("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d{1,5})?")
     # num_regex = re.compile("\d*\d")

@@ -14,7 +14,7 @@ import hashlib
 from qdrant_client.http.models import PointStruct
 from qdrant_client.http.models import Distance, VectorParams
 from tqdm.notebook import tqdm
-from inference import models
+from . import models
 
 from inference.models import GlobalConfig, RapidLogEvent
 

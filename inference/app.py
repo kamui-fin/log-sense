@@ -3,6 +3,9 @@ import pymongo
 import requests
 import sys
 import os
+from torch.utils.data import Dataset, DataLoader
+
+from train_jobs import ChunkDataset
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -27,12 +30,7 @@ client = QdrantClient("localhost", port=6333)
 
 logging.basicConfig(level=logging.INFO)
 
-
 def get_config(base_url="http://localhost:3000") -> GlobalConfig:
-    # GET request to config microservice
-    # for now, let's mock it out
-    # return GlobalConfig(configs={'service1': ServiceConfig(mode="test", threshold=-481.175, coreset_number=2)})
-
     # GET to http://localhost:3000/api/trpc/config.getServices
     response = requests.get(f"{base_url}/api/trpc/config.getServices").json()
     service_list = response["result"]["data"]["json"]["data"]
@@ -46,10 +44,11 @@ def get_config(base_url="http://localhost:3000") -> GlobalConfig:
     return GlobalConfig(configs=configs)
 
 
-def listen_inference_rapid(svc):
+def listen_inference_rapid():
     consumer = KafkaConsumer(
-        f"{svc}-rapid-processed",
+        f"rapid-processed",
         "config-change",
+        "mark-normal",
         bootstrap_servers=["localhost:9092"],
         group_id="inference-group",
         auto_offset_reset="latest",
@@ -57,23 +56,26 @@ def listen_inference_rapid(svc):
         value_deserializer=lambda x: json.loads(x.decode("utf-8")),
     )
     config = get_config()
-    if svc not in config.configs:
-        logging.error(f'No config found for service "{svc}"')
-        return
-    logging.info(f'RAPID Inference service "{svc}" started')
+    services = [svc for svc in config.configs.keys()]
+    logging.info(f'RAPID Inference service started')
     logging.info(f"Using previous config {config}")
-    inferencer = RapidInferenceAPI(client, svc, config)
+    inferencers = {
+        svc: RapidInferenceAPI(client, svc, config) for svc in services
+    }
     for message in consumer:
         if message.topic == "config-change":
             new_config = get_config()
             logging.info(f"Received config update: {new_config}")
-            logging.info(f"Old config: {inferencer.config}")
-            inferencer.reload_config(new_config)
-            logging.info(f"New config: {inferencer.config}")
-            # TODO: handle train mode
+            for inferencer in inferencers.values():
+                inferencer.reload_config(new_config)
         else:
-            event = RapidLogEvent.from_json(message.value)
+            event = RapidLogEvent.from_dict(message.value)
+            service = event.service
+            inferencer = inferencers[service]
             logging.info(f"Received log: {event}")
+            if message.topic == "mark-normal":
+                inferencer.mark_normal(event)
+                continue
             result = inferencer.run_inference(event)
             if result is None:
                 # Found in normal db
@@ -94,7 +96,7 @@ def listen_inference_rapid(svc):
             )
 
 
-def listen_inference_gpt(svc):
+def listen_inference_gpt():
     """
     How training works:
     - When training mode is enabled:
@@ -114,9 +116,8 @@ def listen_inference_gpt(svc):
     """
 
     consumer = KafkaConsumer(
-        f"{svc}-gpt-processed",
+        f"gpt-processed",
         "config-change",
-        "mark-normal",
         bootstrap_servers=["localhost:9092"],
         group_id="inference-group",
         auto_offset_reset="latest",
@@ -124,39 +125,43 @@ def listen_inference_gpt(svc):
         value_deserializer=lambda x: json.loads(x.decode("utf-8")),
     )
     config = get_config()
-    if svc not in config.configs:
-        logging.error(f'No config found for service "{svc}"')
-        return
-    logging.info(f'LogGPT Inference service "{svc}" started')
+    logging.info(f'LogGPT Inference service started')
     logging.info(f"Using previous config {config}")
-    inferencer = LogGPTInferenceAPI(client, svc, config)
-    # client = pymongo.MongoClient("mongodb://localhost:27017/")
-    # db = client['log_sense']
-    # collection = client['logs']
+    inferencers = {
+        svc: LogGPTInferenceAPI(svc, cfg) for svc, cfg in config.configs.items()
+    }
     for message in consumer:
         if message.topic == "config-change":
             config = get_config()
             logging.info(f"Received config update: {config}")
-            logging.info(f"Old config: {inferencer.config}")
-            inferencer.reload_config(config)
-            logging.info(f"New config: {inferencer.config}")
+            for inferencer in inferencers.values():
+                inferencer.reload_config(config.configs[inferencer.service])
         else:
-            log_batch = LogSequenceEvent.from_json(message.value)
+            log_batch: LogSequenceEvent = LogSequenceEvent.from_dict(message.value)
+            svc = log_batch.original_logs[0][0].service
             num_test_samples = len(log_batch.hashes)
             logging.info(f"Received batch: {log_batch}")
+
+            inferencer = inferencers[svc]
             is_train = config.configs[svc].is_train
             if not is_train:
-                is_anomaly = inferencer.run_inference(log_batch)
+                data_loader = DataLoader(ChunkDataset([c.to_dict() for c in log_batch.chunks]), batch_size=2, shuffle=True)
+                is_anomaly = inferencer.run_inference(data_loader)
+                print('Generated predictions!', is_anomaly)
 
             for i in range(num_test_samples):
                 if is_train or is_anomaly[i]:
+                    status = False if is_train else bool(is_anomaly[i])
                     producer.send(
                         "predictions",
                         value=json.dumps(
                             {
+                                "hash": log_batch.hashes[i],
                                 "type": "log_gpt",
-                                "is_anomaly": False if is_train else is_anomaly[i],
-                                **TODO,
+                                "is_anomaly": status,
+                                "chunk": log_batch.chunks[i].to_dict(),
+                                "original_logs": [l.to_dict() for l in log_batch.original_logs[i]],
+                                "train_strategy": log_batch.original_logs[i][0].train_strategy,
                             }
                         ).encode("utf-8"),
                     )
@@ -166,13 +171,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model inference listener")
     # choose model name between [rapid, gpt]
     parser.add_argument("model", type=str, help="Model name")
-    parser.add_argument("svc", help="Service name")
     args = parser.parse_args()
 
     if args.model == "rapid":
-        listen_inference_rapid(args.svc)
+        listen_inference_rapid()
     elif args.model == "gpt":
-        listen_inference_gpt(args.svc)
+        listen_inference_gpt()
     else:
         logging.error(f'Unknown model "{args.model}"')
         sys.exit(1)

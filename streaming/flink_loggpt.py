@@ -1,4 +1,12 @@
+import sys
+import os
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
+from abc import abstractmethod
 import json
+from pyflink.datastream.functions import MapFunction, ProcessFunction, FlatMapFunction
 from pyflink.common.serialization import SimpleStringSchema
 from pyflink.datastream.connectors.kafka import (
     KafkaSource,
@@ -11,7 +19,7 @@ import pathlib
 import re
 from pprint import pprint
 from collections import defaultdict
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Generic, Iterable, List, Tuple
 from pyflink.common.typeinfo import Types
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.formats.json import JsonRowDeserializationSchema
@@ -22,7 +30,6 @@ from pyflink.common.watermark_strategy import TimestampAssigner
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.datastream.functions import KeyedProcessFunction, RuntimeContext
 from pyflink.common import Types, WatermarkStrategy, Time, Encoder
-from pyflink.common.watermark_strategy import TimestampAssigner
 from pyflink.datastream import (
     StreamExecutionEnvironment,
     ProcessWindowFunction,
@@ -37,11 +44,12 @@ from pyflink.datastream.state import (
     MapStateDescriptor,
     ListStateDescriptor,
 )
+import requests
 from transformers import BertTokenizer
 import re
 import hashlib
-
-from streaming.utils import JSONDeserializationSchema, LogTimestampAssigner, regex_clean
+from inference.models import GlobalConfig, ServiceConfig
+from utils import JSONDeserializationSchema, LogTimestampAssigner, regex_clean
 
 CONTEXT_SIZE = 5
 num_special_tokens = 3
@@ -87,8 +95,8 @@ class LogAggregator(AggregateFunction):
         accumulator["chunks"].append(accumulator["current_tokens"])
         accumulator["original_logs"].append(accumulator["current_logs"])
         sha256_hash = hashlib.sha256(
-            "\n".join(accumulator["current_logs"]).encode("utf-8")
-        ).hexdigest()
+            "\n".join([log['cleaned_text'] for log in accumulator["current_logs"]]).encode("utf-8")
+        ).digest()
         accumulator["hashes"].append(
             str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         )
@@ -101,14 +109,17 @@ class LogAggregator(AggregateFunction):
         sha256_hash = hashlib.sha256(clean_log.encode("utf-8")).digest()
         log_hash = str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         template_id = self.drain_parse(clean_log) + num_special_tokens
-        log_data = {"clean_log": clean_log, "hash": log_hash, **log_data}
+        log_data = {"cleaned_text": clean_log, "hash": log_hash, **log_data}
 
+        print('Add()')
         if (
             len(accumulator["current_tokens"]["input_ids"]) < CONTEXT_SIZE - 2
         ):  # -2 for bos and eos tokens
+            print("Adding to accumulator")
             accumulator["current_tokens"]["input_ids"].append(template_id)
             accumulator["current_logs"].append(log_data)
         else:
+            print("FINISHED RESULT: add_chunk()")
             self.add_current_chunk(accumulator)
             # Initialize new chunk
             accumulator["current_tokens"] = {"input_ids": [template_id]}
@@ -116,6 +127,9 @@ class LogAggregator(AggregateFunction):
         return accumulator
 
     def get_result(self, accumulator):
+        print("FINISHED RESULT: get_result()")
+        if accumulator["current_logs"]:
+            self.add_current_chunk(accumulator)
         return {
             "hashes": accumulator["hashes"],
             "chunks": accumulator["chunks"],
@@ -128,45 +142,99 @@ class LogAggregator(AggregateFunction):
         raise NotImplementedError()
 
 
+def get_config(base_url="http://localhost:3000") -> GlobalConfig:
+    # GET to http://localhost:3000/api/trpc/config.getServices
+    response = requests.get(f"{base_url}/api/trpc/config.getServices").json()
+    service_list = response["result"]["data"]["json"]["data"]
+    configs = {}
+    for service in service_list:
+        configs[service["name"]] = ServiceConfig(
+            is_train=service["isTrain"],
+            threshold=service["threshold"],
+            coreset_size=service["coresetSize"],
+        )
+    return GlobalConfig(configs=configs)
+
+config = get_config()
+
+class TrainModeProcessor(MapFunction):
+    def __init__(self, max_pretrain):
+        super().__init__()
+        self.max_pretrain = max_pretrain
+        self.counter_state = None
+        self.train_mode = None
+
+    def open(self, runtime_context: RuntimeContext):
+        # Initialize counter state
+        self.counter_state = runtime_context.get_state(ValueStateDescriptor("counter", Types.INT()))
+        self.train_mode = runtime_context.get_state(ValueStateDescriptor("train_mode", Types.BOOLEAN()))
+
+    def map(self, value):
+        service = value['service']
+        self.train_mode.update(config.configs[service].is_train)
+        if self.counter_state.value() is None:
+            self.counter_state.update(0)
+
+        if self.train_mode.value():
+            self.counter_state.update(self.counter_state.value() + 1)
+            return {
+                "train_strategy": 'pre-train' if self.counter_state.value() - 1 <= self.max_pretrain else 'finetune',
+                **value,
+            }
+        # Emit result
+        return value
+
+
 env = StreamExecutionEnvironment.get_execution_environment()
+env.add_jars(
+    "file:///home/kamui/dev/projects/log-sense/streaming/jar/flink-connector-kafka-3.0.2-1.18.jar",
+    "file:///home/kamui/dev/projects/log-sense/streaming/jar/kafka-clients-3.7.0.jar",
+)
+
 
 watermark_strategy = (
     WatermarkStrategy.for_bounded_out_of_orderness(Duration.of_seconds(1))
     .with_idleness(Duration.of_millis(500))
     .with_timestamp_assigner(LogTimestampAssigner())
 )
-configured_services = ["service1"]  # TODO: pull from global service list
 
-for current_svc in configured_services:
-    current_source = (
-        KafkaSource.builder()
+source = (
+    KafkaSource.builder()
         .set_bootstrap_servers("localhost:9092")
-        .set_topics(current_svc)
-        .set_group_id("flink-group")
+        .set_topics('loki')
+        .set_group_id("flink-loggpt")
         .set_starting_offsets(KafkaOffsetsInitializer.latest())
         .set_value_only_deserializer(JSONDeserializationSchema())
         .build()
+)
+stream = env.from_source(source, watermark_strategy, 'flink-loggpt')
+
+windowed_stream = (
+    stream
+    .map(lambda x: json.loads(x))
+    .key_by(
+        lambda log_data: log_data["service"], key_type=Types.STRING()
     )
-    current_stream = env.from_source(current_source, watermark_strategy, current_svc)
-    windowed_stream = (
-        current_stream.key_by(
-            lambda log_data: log_data["node"], key_type=Types.STRING()
-        )
-        .window(TumblingEventTimeWindows.of(Time.seconds(30)))
-        .aggregate(LogAggregator())
+    .map(TrainModeProcessor(max_pretrain=5))
+    .key_by(
+        lambda log_data: log_data["node"], key_type=Types.STRING()
     )
-    sink = (
-        KafkaSink.builder()
-        .set_bootstrap_servers("localhost:9092")
-        .set_record_serializer(
-            KafkaRecordSerializationSchema.builder()
-            .set_topic(f"{current_svc}-gpt-processed")
-            .set_value_serialization_schema(SimpleStringSchema())
-            .build()
-        )
-        .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+    .window(TumblingEventTimeWindows.of(Time.milliseconds(500)))
+    .aggregate(LogAggregator())
+    .map(lambda x: json.dumps(x), Types.STRING())
+)
+sink = (
+    KafkaSink.builder()
+    .set_bootstrap_servers("localhost:9092")
+    .set_record_serializer(
+        KafkaRecordSerializationSchema.builder()
+        .set_topic(f"gpt-processed")
+        .set_value_serialization_schema(SimpleStringSchema())
         .build()
     )
-    windowed_stream.sink_to(sink)
+    .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+    .build()
+)
+windowed_stream.sink_to(sink)
 
 env.execute()
