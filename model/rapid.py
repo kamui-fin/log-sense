@@ -6,6 +6,8 @@ from qdrant_client.http.models import Distance, VectorParams
 
 from models import GlobalConfig, RapidLogEvent
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def distance(query_emb, train_embedding):
     dot_products = query_emb @ train_embedding.T

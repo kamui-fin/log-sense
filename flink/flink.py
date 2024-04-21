@@ -39,7 +39,6 @@ import hashlib
 from models import GlobalConfig, ServiceConfig
 from utils import JSONDeserializationSchema, LogTimestampAssigner, regex_clean
 
-CONTEXT_SIZE = 256
 num_special_tokens = 3
 bos_token_id = 0
 eos_token_id = 1
@@ -53,6 +52,8 @@ class LogAggregator(AggregateFunction):
     def __init__(self):
         persistence = FilePersistence("/tmp/drain3_state.bin")
         self.template_miner = TemplateMiner(persistence_handler=persistence)
+
+        self.context_size = None
 
     def create_accumulator(self):
         return {
@@ -68,13 +69,13 @@ class LogAggregator(AggregateFunction):
     def add_current_chunk(self, accumulator):
         input_ids = accumulator["current_tokens"]["input_ids"]
         attention_mask = [1] * (len(input_ids) + 2) + [0] * (
-            CONTEXT_SIZE - len(input_ids) - 2
+            self.context_size - len(input_ids) - 2
         )
         pad_input_ids = (
             [bos_token_id]
             + input_ids
             + [eos_token_id]
-            + [pad_token_id] * (CONTEXT_SIZE - len(input_ids) - 2)
+            + [pad_token_id] * (self.context_size - len(input_ids) - 2)
         )
         accumulator["current_tokens"]["input_ids"] = pad_input_ids
         accumulator["current_tokens"]["attention_mask"] = attention_mask
@@ -95,21 +96,21 @@ class LogAggregator(AggregateFunction):
         return self.template_miner.add_log_message(log_line)["cluster_id"]
 
     def add(self, log_data, accumulator):
+        if self.context_size is None:
+            self.context_size = config.configs[log_data["service"]].context_size
+
         clean_log = regex_clean(log_data["original_text"])
         sha256_hash = hashlib.sha256(clean_log.encode("utf-8")).digest()
         log_hash = str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         template_id = self.drain_parse(clean_log) + num_special_tokens
         log_data = {"cleaned_text": clean_log, "hash": log_hash, **log_data}
 
-        print("Add()")
         if (
-            len(accumulator["current_tokens"]["input_ids"]) < CONTEXT_SIZE - 2
+            len(accumulator["current_tokens"]["input_ids"]) < self.context_size - 2
         ):  # -2 for bos and eos tokens
-            print("Adding to accumulator")
             accumulator["current_tokens"]["input_ids"].append(template_id)
             accumulator["current_logs"].append(log_data)
         else:
-            print("FINISHED RESULT: add_chunk()")
             self.add_current_chunk(accumulator)
             # Initialize new chunk
             accumulator["current_tokens"] = {"input_ids": [template_id]}
@@ -128,11 +129,14 @@ class LogAggregator(AggregateFunction):
 
     def merge(self, acc1, acc2):
         # merging isn't necessary in this case
-        print(f"MERGING {acc1} {acc2}")
         raise NotImplementedError()
 
 
 def get_config() -> GlobalConfig:
+    response = requests.get(
+        f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getSettings"
+    ).json()
+    general_settings = response["result"]["data"]["json"]["data"]
     response = requests.get(
         f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getServices"
     ).json()
@@ -145,17 +149,19 @@ def get_config() -> GlobalConfig:
             coreset_size=service["coresetSize"],
             enable_trace=service["enableTrace"],
             trace_regex=service["traceRegex"],
+            context_size=service["contextSize"],
         )
-    return GlobalConfig(configs=configs)
+    return GlobalConfig(
+        configs=configs, window_size_sec=general_settings["windowSizeSec"]
+    )
 
 
 config = get_config()
 
 
 class TrainModeProcessor(MapFunction):
-    def __init__(self, max_pretrain):
+    def __init__(self):
         super().__init__()
-        self.max_pretrain = max_pretrain
         self.counter_state = None
         self.train_mode = None
 
@@ -179,7 +185,8 @@ class TrainModeProcessor(MapFunction):
             return {
                 "train_strategy": (
                     "pre-train"
-                    if self.counter_state.value() - 1 <= self.max_pretrain
+                    if self.counter_state.value() - 1
+                    <= config.configs[service].max_pretrain
                     else "finetune"
                 ),
                 **value,
@@ -226,7 +233,6 @@ class RegexTokenize(MapFunction):
         tokens = self.tokenizer(
             clean_log, padding="max_length", truncation=True, max_length=512
         )
-        print("rapid processed log")
         processed_log = {
             "cleaned_text": clean_log,
             "hash": hash_log,
@@ -283,10 +289,10 @@ rapid_stream.sink_to(rapid_sink)
 log_gpt_stream = (
     kafka_stream.map(lambda x: json.loads(x))
     .key_by(lambda log_data: log_data["service"], key_type=Types.STRING())
-    .map(TrainModeProcessor(max_pretrain=5))
+    .map(TrainModeProcessor())
     .map(TraceExtractor())
     .key_by(trace_node_selector, key_type=Types.STRING())
-    .window(TumblingEventTimeWindows.of(Time.seconds(3)))
+    .window(TumblingEventTimeWindows.of(Time.seconds(config.window_size_sec)))
     .aggregate(LogAggregator())
     .map(lambda x: json.dumps(x), Types.STRING())
 )

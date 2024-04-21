@@ -44,8 +44,7 @@ def get_config() -> GlobalConfig:
             is_train=service["isTrain"],
             threshold=service["threshold"],
             coreset_size=service["coresetSize"],
-            enable_trace=service["enableTrace"],
-            trace_regex=service["traceRegex"],
+            context_size=service["contextSize"],
         )
     return GlobalConfig(configs=configs)
 
@@ -113,10 +112,6 @@ def listen_inference_gpt():
     - Every minute, a batch of processed log sequences arrives with accompanying original log data.
     - We feed this batch to the model at once and mark the timestamp range as anomalous (for now).
     - Frontend should prepare for a different kind of model output compared to rapid inference.
-        - In the future, it should also expect different kinds of grouping for inference.
-            - Single
-            - Window
-            - Trace
     """
 
     consumer = KafkaConsumer(
@@ -151,7 +146,7 @@ def listen_inference_gpt():
             if not is_train:
                 data_loader = DataLoader(
                     ChunkDataset([c.to_dict() for c in log_batch.chunks]),
-                    batch_size=2,
+                    batch_size=2,  # TODO:
                     shuffle=True,
                 )
                 is_anomaly = inferencer.run_inference(data_loader)
