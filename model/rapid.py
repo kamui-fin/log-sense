@@ -97,6 +97,11 @@ class RapidInferenceAPI:
             with_payload=["cleaned_text", "tokens"],
             with_vectors=False,
         )
+        if len(core_set) == 0:
+            logging.error(
+                "No core set found! Initialize the database with normal logs first."
+            )
+            return
         # logging.info(f'Found coreset: {" ".join([c.payload["text"] for c in core_set])}')
         logging.info(f"Found core set of length {len(core_set)}")
         logging.info("Calculating anomaly score..")
@@ -149,6 +154,8 @@ class RapidInferenceAPI:
             return
 
         score = self.get_score(test_log)
+        if score is None:
+            return
         logging.info(f"Score: {score}")
         is_anomaly = score > self.config.configs[self.service].threshold
         logging.info(f"Is anomaly: {is_anomaly}")

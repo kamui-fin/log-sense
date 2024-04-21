@@ -7,9 +7,20 @@ import { Context } from "../_app";
 const createServiceSchema = z.object({
     name: z.string(),
     description: z.string(),
-    isTrain: z.boolean().default(false),
-    threshold: z.number().optional(),
-    coresetSize: z.number().optional(),
+    is_train: z.boolean().default(false),
+    threshold: z.number().default(-470.2),
+    coreset_size: z.number().default(2),
+    enable_trace: z.boolean().default(false),
+    trace_regex: z.string().optional(),
+    top_k: z.number().default(80),
+    max_pretrain: z.number().default(10_000),
+    context_size: z.number().default(512),
+    lr_pretraining: z.number().default(1e-4),
+    lr_finetuning: z.number().default(1e-6),
+    train_batch_size: z.number().default(16),
+    num_episodes: z.number().default(10),
+    num_epochs: z.number().default(10),
+    vocab_size: z.number().default(500),
 });
 
 const params = z.object({
@@ -18,13 +29,7 @@ const params = z.object({
 
 const updateServiceSchema = z.object({
     params,
-    body: z.object({
-        name: z.string().optional(),
-        description: z.string().optional(),
-        isTrain: z.boolean().optional(),
-        threshold: z.number().optional(),
-        coresetSize: z.number().optional(),
-    }),
+    body: createServiceSchema,
 });
 
 type ParamsInput = z.TypeOf<typeof params>;

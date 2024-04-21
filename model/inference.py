@@ -40,13 +40,20 @@ def get_config() -> GlobalConfig:
     service_list = response["result"]["data"]["json"]["data"]
     configs = {}
     for service in service_list:
-        configs[service["name"]] = ServiceConfig(
-            is_train=service["isTrain"],
-            threshold=service["threshold"],
-            coreset_size=service["coresetSize"],
-            context_size=service["contextSize"],
-        )
+        name = service["name"]
+        del service["_id"]
+        del service["name"]
+        del service["description"]
+        del service["__v"]
+        configs[name] = ServiceConfig(**service)
     return GlobalConfig(configs=configs)
+
+
+def deserializer(msg):
+    try:
+        return json.loads(msg.decode("utf-8"))
+    except:
+        return {"invalid": True}
 
 
 def listen_inference_rapid():
@@ -55,10 +62,10 @@ def listen_inference_rapid():
         "config-change",
         "mark-normal",
         bootstrap_servers=[KAFKA_URI],
-        group_id="inference-group",
+        group_id="rapid-inference-group",
         auto_offset_reset="latest",
         enable_auto_commit=True,
-        value_deserializer=lambda x: json.loads(x.decode("utf-8")),
+        value_deserializer=deserializer,
     )
     config = get_config()
     services = [svc for svc in config.configs.keys()]
@@ -71,6 +78,8 @@ def listen_inference_rapid():
             logging.info(f"Received config update: {new_config}")
             for inferencer in inferencers.values():
                 inferencer.reload_config(new_config)
+        elif message.value.get("invalid"):
+            continue
         else:
             event = RapidLogEvent.from_dict(message.value)
             service = event.service
@@ -118,10 +127,10 @@ def listen_inference_gpt():
         f"gpt-processed",
         "config-change",
         bootstrap_servers=[KAFKA_URI],
-        group_id="inference-group",
+        group_id="gpt-inference-group",
         auto_offset_reset="latest",
         enable_auto_commit=True,
-        value_deserializer=lambda x: json.loads(x.decode("utf-8")),
+        value_deserializer=deserializer,
     )
     config = get_config()
     logging.info(f"LogGPT Inference service started")
@@ -135,6 +144,8 @@ def listen_inference_gpt():
             logging.info(f"Received config update: {config}")
             for inferencer in inferencers.values():
                 inferencer.reload_config(config.configs[inferencer.service])
+        elif message.value.get("invalid"):
+            continue
         else:
             log_batch: LogSequenceEvent = LogSequenceEvent.from_dict(message.value)
             svc = log_batch.original_logs[0][0].service
@@ -150,7 +161,7 @@ def listen_inference_gpt():
                     shuffle=True,
                 )
                 is_anomaly = inferencer.run_inference(data_loader)
-                print("Generated predictions!", is_anomaly)
+                logging.info("Generated predictions!", is_anomaly)
 
             for i in range(num_test_samples):
                 if is_train or is_anomaly[i]:

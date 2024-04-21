@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
@@ -11,15 +11,22 @@ class ServiceConfig:
     coreset_size: int
 
     enable_trace: bool
-    trace_regex: str
 
     # log-gpt
+    top_k: int
     max_pretrain: int
     context_size: int
+    lr_pretraining: float
+    lr_finetuning: float
+    train_batch_size: int
+    num_episodes: int
+    num_epochs: int
+    vocab_size: int
+
+    trace_regex: Optional[str] = ""
 
 
 @dataclass_json
 @dataclass
 class GlobalConfig:
     configs: Dict[str, ServiceConfig]
-    window_size_sec: int

@@ -134,26 +134,18 @@ class LogAggregator(AggregateFunction):
 
 def get_config() -> GlobalConfig:
     response = requests.get(
-        f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getSettings"
-    ).json()
-    general_settings = response["result"]["data"]["json"]["data"]
-    response = requests.get(
         f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getServices"
     ).json()
     service_list = response["result"]["data"]["json"]["data"]
     configs = {}
     for service in service_list:
-        configs[service["name"]] = ServiceConfig(
-            is_train=service["isTrain"],
-            threshold=service["threshold"],
-            coreset_size=service["coresetSize"],
-            enable_trace=service["enableTrace"],
-            trace_regex=service["traceRegex"],
-            context_size=service["contextSize"],
-        )
-    return GlobalConfig(
-        configs=configs, window_size_sec=general_settings["windowSizeSec"]
-    )
+        name = service["name"]
+        del service["_id"]
+        del service["name"]
+        del service["description"]
+        del service["__v"]
+        configs[name] = ServiceConfig(**service)
+    return GlobalConfig(configs=configs)
 
 
 config = get_config()
@@ -286,13 +278,20 @@ rapid_sink = (
 )
 rapid_stream.sink_to(rapid_sink)
 
+# get tumbling window seconds from argparse
+args = sys.argv
+if len(args) < 2:
+    window_size_sec = 60
+else:
+    window_size_sec = int(args[1])
+
 log_gpt_stream = (
     kafka_stream.map(lambda x: json.loads(x))
     .key_by(lambda log_data: log_data["service"], key_type=Types.STRING())
     .map(TrainModeProcessor())
     .map(TraceExtractor())
     .key_by(trace_node_selector, key_type=Types.STRING())
-    .window(TumblingEventTimeWindows.of(Time.seconds(config.window_size_sec)))
+    .window(TumblingEventTimeWindows.of(Time.seconds(window_size_sec)))
     .aggregate(LogAggregator())
     .map(lambda x: json.dumps(x), Types.STRING())
 )

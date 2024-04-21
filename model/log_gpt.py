@@ -8,34 +8,26 @@ from torch.distributions import Categorical
 
 from models import ServiceConfig
 
+# defaults
+# top_k = 80
+# context_size = 256
+# lr_pretraining = 1e-4
+# lr_finetuning = 1e-6
+# batch_size = 16
+# num_episodes = 10
+# num_epochs = 10
+# vocab_size = 195
+
 embed_dim = 60
 layers = 6
 heads = 6
-
-context_size = 256
-lr_pretraining = 1e-4
-lr_finetuning = 1e-6
-batch_size = 16
-
-# HDFS: 7
-# BGL: 80
-# TB: 690
-top_k = 80
-
-num_episodes = 10
-num_epochs = 10
-
 loss_improv_epsilon = 0.01
-
 num_special_tokens = 3
 bos_token_id = 0
 eos_token_id = 1
 pad_token_id = 2
-
 num_beams = 5
 cut = 0.8
-
-vocab_size = 195
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -46,7 +38,7 @@ class LogGPTInferenceAPI:
         self.config = config
         self.cache_path = cache_path
         self.model_output_path = self.cache_path / "model.pt"
-        self.setup_model_optimizer(vocab_size, self.cache_path)
+        self.setup_model_optimizer(config.vocab_size)
 
     def reload_config(self, config: ServiceConfig):
         self.config = config
@@ -67,7 +59,7 @@ class LogGPTInferenceAPI:
                             [
                                 i.detach().cpu().item()
                                 for i in torch.topk(
-                                    dist.logits[token_id], top_k
+                                    dist.logits[token_id], self.config.top_k
                                 ).indices
                             ]
                         )
@@ -86,21 +78,21 @@ class LogGPTInferenceAPI:
             n_head=heads,
             n_embd=embed_dim,
             vocab_size=vocab_size + 1,  # for padding token
-            n_positions=context_size,
+            n_positions=self.config.context_size,
             bos_token_id=bos_token_id,
             eos_token_id=eos_token_id,
             pad_token_id=pad_token_id,
         )
 
         self.model = GPT2LMHeadModel(configuration).to(device)
-        self.optimizer = AdamW(self.model.parameters(), lr=lr_pretraining)
+        self.optimizer = AdamW(self.model.parameters(), lr=self.config.lr_pretraining)
         if self.model_output_path and self.model_output_path.exists():
             self.load_model(self.model_output_path)
 
     def pretrain_model(self, train_dataloader):
         print("Beginning model pre-training...")
         self.model.train()
-        for epoch in tqdm(range(num_epochs), desc="Epoch: "):
+        for epoch in tqdm(range(self.config.num_epochs), desc="Epoch: "):
             train_loss = 0
             for batch in tqdm(train_dataloader, desc="Training: "):
                 self.optimizer.zero_grad()
@@ -113,7 +105,7 @@ class LogGPTInferenceAPI:
 
             train_loss /= len(train_dataloader)
             print(
-                f"Epoch {epoch+1}/{num_epochs}, Training Loss: {train_loss / len(batch)}"
+                f"Epoch {epoch+1}/{self.config.num_epochs}, Training Loss: {train_loss / len(batch)}"
             )
 
             print("Saving model...")
@@ -137,7 +129,7 @@ class LogGPTInferenceAPI:
             softmax = Categorical(logits=logits[i])
             next_token_id = input_ids[i + 1]
             log_prob += softmax.log_prob(next_token_id.clone())
-            top_next_tokens = torch.topk(logits[i], k=top_k).indices
+            top_next_tokens = torch.topk(logits[i], k=self.config.top_k).indices
             reward += 1 if next_token_id in top_next_tokens else -1
         cost = -reward * log_prob
         return cost
@@ -174,7 +166,7 @@ class LogGPTInferenceAPI:
         count = 0
         best_loss = float("inf")
         self.model.train()
-        for episode in tqdm(range(num_episodes), "Episode: "):
+        for episode in tqdm(range(self.config.num_episodes), "Episode: "):
             num_rows = train_set.size(0)
             permuted_indices = torch.randperm(num_rows)
             finetune_trainset = train_set[permuted_indices]
@@ -184,7 +176,9 @@ class LogGPTInferenceAPI:
                 train_loss += self.step(sequence)
             train_loss /= len(finetune_trainset)
 
-            print(f"Episode {episode}/{num_episodes} (finetune): {train_loss}")
+            print(
+                f"Episode {episode}/{self.config.num_episodes} (finetune): {train_loss}"
+            )
             if last_episode_loss - train_loss <= loss_improv_epsilon:
                 print(f"Loss barely changed {last_episode_loss} to {train_loss}")
                 count += 1

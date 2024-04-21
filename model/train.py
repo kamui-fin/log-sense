@@ -1,3 +1,4 @@
+from pprint import pprint
 import torch
 import time
 from models import ChunkDataset
@@ -30,13 +31,19 @@ def task():
         chunks = document.get("chunks")
         chunks_by_strat[train_strategy] = chunks
 
+    if not len(chunks_by_strat):
+        logging.error('No data to train for today')
+        return
+
     # pre-train
     pre_train_chunks = chunks_by_strat["pre-train"]
-    begin_pretraining(pre_train_chunks)
+    pprint(pre_train_chunks)
+    # begin_pretraining(pre_train_chunks)
 
     # fine-tune
     fine_tune_chunks = chunks_by_strat["finetune"]
-    begin_finetuning(fine_tune_chunks)
+    pprint(fine_tune_chunks)
+    # begin_finetuning(fine_tune_chunks)
 
 
 def begin_pretraining(chunks):
@@ -54,6 +61,7 @@ def begin_finetuning(sequences):
 # Schedule the task to run every day at 12 am
 schedule.every().day.at("00:00").do(task)
 
+task()
 while True:
     schedule.run_pending()
     time.sleep(1)
