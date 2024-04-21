@@ -6,6 +6,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 import json
+import re
 from pyflink.datastream.functions import MapFunction
 from pyflink.common.serialization import SimpleStringSchema
 from pyflink.datastream.connectors.kafka import (
@@ -50,7 +51,7 @@ KAFKA_URI = os.getenv("KAFKA_URI", "localhost:9092")
 
 class LogAggregator(AggregateFunction):
     def __init__(self):
-        persistence = FilePersistence("drain3_state.bin")
+        persistence = FilePersistence("/tmp/drain3_state.bin")
         self.template_miner = TemplateMiner(persistence_handler=persistence)
 
     def create_accumulator(self):
@@ -142,6 +143,8 @@ def get_config() -> GlobalConfig:
             is_train=service["isTrain"],
             threshold=service["threshold"],
             coreset_size=service["coresetSize"],
+            enable_trace=service["enableTrace"],
+            trace_regex=service["traceRegex"],
         )
     return GlobalConfig(configs=configs)
 
@@ -183,6 +186,32 @@ class TrainModeProcessor(MapFunction):
             }
         # Emit result
         return value
+
+
+class TraceExtractor(MapFunction):
+    def __init__(self):
+        super().__init__()
+
+    def map(self, value):
+        svc_config = config.configs[value["service"]]
+        if svc_config.enable_trace:
+            trace_regex = re.compile(svc_config.trace_regex)
+            trace_id = trace_regex.findall(value["original_text"])
+            if len(trace_id):
+                return {
+                    "trace_id": trace_id[0],
+                    **value,
+                }
+
+        return value
+
+
+def trace_node_selector(value):
+    svc_config = config.configs[value["service"]]
+    if svc_config.enable_trace:
+        return value["trace_id"]
+    else:
+        return value["node"]
 
 
 class RegexTokenize(MapFunction):
@@ -255,7 +284,8 @@ log_gpt_stream = (
     kafka_stream.map(lambda x: json.loads(x))
     .key_by(lambda log_data: log_data["service"], key_type=Types.STRING())
     .map(TrainModeProcessor(max_pretrain=5))
-    .key_by(lambda log_data: log_data["node"], key_type=Types.STRING())
+    .map(TraceExtractor())
+    .key_by(trace_node_selector, key_type=Types.STRING())
     .window(TumblingEventTimeWindows.of(Time.seconds(3)))
     .aggregate(LogAggregator())
     .map(lambda x: json.dumps(x), Types.STRING())

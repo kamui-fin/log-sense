@@ -37,6 +37,8 @@ cut = 0.8
 
 vocab_size = 195
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class LogGPTInferenceAPI:
     def __init__(self, service: str, config: ServiceConfig, cache_path=Path("cache")):
@@ -55,7 +57,7 @@ class LogGPTInferenceAPI:
         predictions = []
         with torch.no_grad():
             for batch in tqdm(val_dataloader, "Batch: "):
-                batch = {k: v.cuda() for k, v in batch.items()}
+                batch = {k: v.to(device) for k, v in batch.items()}
                 logits = self.model(**batch).logits
                 for batch_num, labels in enumerate(batch["input_ids"]):
                     is_anomaly = False
@@ -78,7 +80,7 @@ class LogGPTInferenceAPI:
                     predictions.append(is_anomaly)
         return predictions
 
-    def setup_model_optimizer(self, vocab_size, cache_path=None):
+    def setup_model_optimizer(self, vocab_size):
         configuration = GPT2Config(
             n_layer=layers,
             n_head=heads,
@@ -90,7 +92,7 @@ class LogGPTInferenceAPI:
             pad_token_id=pad_token_id,
         )
 
-        self.model = GPT2LMHeadModel(configuration).cuda()
+        self.model = GPT2LMHeadModel(configuration).to(device)
         self.optimizer = AdamW(self.model.parameters(), lr=lr_pretraining)
         if self.model_output_path and self.model_output_path.exists():
             self.load_model(self.model_output_path)
@@ -102,7 +104,7 @@ class LogGPTInferenceAPI:
             train_loss = 0
             for batch in tqdm(train_dataloader, desc="Training: "):
                 self.optimizer.zero_grad()
-                batch = {k: v.cuda() for k, v in batch.items()}
+                batch = {k: v.to(device) for k, v in batch.items()}
                 outputs = self.model(**batch)
                 loss = outputs.loss
                 loss.backward()

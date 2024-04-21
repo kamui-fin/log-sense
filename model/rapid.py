@@ -21,7 +21,7 @@ class RapidInferenceAPI:
         self.client = client
         self.service = service
         self.config = config
-        self.model = BertModel.from_pretrained("bert-base-uncased").to("cuda:0")
+        self.model = BertModel.from_pretrained("bert-base-uncased").to(device)
 
         self.normal_collection_name = f"normal-{self.service}"
         self.normal_collection_name = f"normal"  # TODO: TEMP
@@ -44,9 +44,10 @@ class RapidInferenceAPI:
     def get_sentence_embedding(self, log: RapidLogEvent):
         logging.info(f"Getting embedding..")
         # map each list within log.tokens into a tensor and move to cuda
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         for key, value in log.tokens.items():
             if isinstance(value, list) or value.device.type == "cpu":
-                log.tokens[key] = torch.tensor(value).unsqueeze(0).to("cuda:0")
+                log.tokens[key] = torch.tensor(value).unsqueeze(0).to(device)
         output = self.model(**log.tokens)
         embeddings = output.last_hidden_state
         # we must deallocate from gpu mem!

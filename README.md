@@ -1,6 +1,3 @@
-nvidia drivers
-nvidia-container-toolkit
-
 # LogSense
 
 With this product, our goal is to leverage an ensemble of state-of-the-art LLM-based log anomaly detection models in streamlining an architecture capable of real-time anomaly detection.

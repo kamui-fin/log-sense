@@ -11,6 +11,8 @@ import os
 MONGO_HOST = os.getenv("MONGO_HOST", "localhost")
 MONGO_PORT = os.getenv("MONGO_PORT", 27017)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def task():
     client = MongoClient(MONGO_HOST, MONGO_PORT)
@@ -44,7 +46,7 @@ def begin_pretraining(chunks):
 
 
 def begin_finetuning(sequences):
-    sequences = torch.tensor([chunk["input_ids"] for chunk in sequences]).cuda()
+    sequences = torch.tensor([chunk["input_ids"] for chunk in sequences], device=device)
     model = LogGPTInferenceAPI(None)
     model.finetune(sequences)
 

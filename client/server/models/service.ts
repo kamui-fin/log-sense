@@ -22,6 +22,12 @@ class Service {
 
     @prop({ type: Number })
     coresetSize!: number;
+
+    @prop({ type: Boolean, default: false })
+    enableTrace!: boolean;
+
+    @prop({ type: String })
+    traceRegex?: string;
 }
 
 const ServiceModel = getModelForClass(Service);

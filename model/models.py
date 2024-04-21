@@ -11,6 +11,8 @@ class ServiceConfig:
     is_train: bool
     threshold: float
     coreset_size: int
+    enable_trace: bool
+    trace_regex: str
 
 
 @dataclass_json
@@ -68,8 +70,9 @@ class ChunkDataset(Dataset):
 
     def __getitem__(self, idx):
         sample = self.data[idx]
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         return {
-            "input_ids": torch.tensor(sample["input_ids"]).cuda(),
-            "attention_mask": torch.tensor(sample["attention_mask"]).cuda(),
-            "labels": torch.tensor(sample["labels"]).cuda(),
+            "input_ids": torch.tensor(sample["input_ids"], device=device),
+            "attention_mask": torch.tensor(sample["attention_mask"], device=device),
+            "labels": torch.tensor(sample["labels"], device=device),
         }

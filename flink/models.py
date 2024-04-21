@@ -10,6 +10,9 @@ class ServiceConfig:
     threshold: float
     coreset_size: int
 
+    enable_trace: bool
+    trace_regex: str
+
 
 @dataclass_json
 @dataclass

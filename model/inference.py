@@ -44,6 +44,8 @@ def get_config() -> GlobalConfig:
             is_train=service["isTrain"],
             threshold=service["threshold"],
             coreset_size=service["coresetSize"],
+            enable_trace=service["enableTrace"],
+            trace_regex=service["traceRegex"],
         )
     return GlobalConfig(configs=configs)
 
