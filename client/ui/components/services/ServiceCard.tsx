@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { trpc } from "../../../utils/trpc";
 import { z } from "zod";
 import { Update } from "next/dist/build/swc";
+import { ObjectId } from "mongoose";
 
 interface Service {
     _id: string;
@@ -40,25 +41,25 @@ const updateServiceSchema = z.object({
 type UpdateServiceInput = z.TypeOf<typeof updateServiceSchema>;
 
 export function ServiceCard({ service }: ServiceCardProps) {
-    const { _id, name, description, isTrain, threshold, coresetSize } = service;
+    const { name, description, isTrain, threshold, coresetSize } = service;
     const form = useForm<UpdateServiceInput>({
         initialValues: {
             isTrain,
             threshold,
             coresetSize,
-            resolver: zodResolver(updateServiceSchema),
         },
+        validate: zodResolver(updateServiceSchema),
     });
 
-    const queryClient = useQueryClient();
+    const utils = trpc.useUtils();
     const { mutate: updateService } = trpc.config.updateService.useMutation({
         onSuccess() {
-            queryClient.invalidateQueries(["getNotes"]);
+            utils.config.getServices.invalidate();
         },
     });
     const { mutate: deleteService } = trpc.config.deleteService.useMutation({
         onSuccess() {
-            queryClient.invalidateQueries(["getNotes"]);
+            utils.config.getServices.invalidate();
         },
     });
 

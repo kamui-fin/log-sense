@@ -1,4 +1,5 @@
-import { useForm, zodResolver } from "@mantine/form";
+import { useForm } from "@mantine/form";
+import { zodResolver } from "mantine-form-zod-resolver";
 import { useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { trpc } from "../../../utils/trpc";
@@ -14,18 +15,25 @@ const createServiceSchema = z.object({
 
 type CreateServiceInput = z.TypeOf<typeof createServiceSchema>;
 
-export const AddService = ({ opened, open, close }) => {
-    const queryClient = useQueryClient();
-    const { isLoading, mutate: createService } =
-        trpc.config.createService.useMutation({
-            onSuccess() {
-                queryClient.invalidateQueries(["getServices"]);
-                close();
-            },
-        });
+interface Props {
+    // State of the modal
+    opened: boolean;
+    open: () => void;
+    close: () => void;
+}
+
+export const AddService = ({ opened, open, close }: Props) => {
+    const utils = trpc.useUtils();
+
+    const { mutate: createService } = trpc.config.createService.useMutation({
+        onSuccess() {
+            utils.config.getServices.invalidate();
+            close();
+        },
+    });
 
     const methods = useForm<CreateServiceInput>({
-        resolver: zodResolver(createServiceSchema),
+        validate: zodResolver(createServiceSchema),
     });
 
     return (

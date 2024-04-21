@@ -1,5 +1,4 @@
 from torch.distributions.categorical import Categorical
-import pandas as pd
 import torch
 from tqdm import tqdm
 from sklearn.metrics import (

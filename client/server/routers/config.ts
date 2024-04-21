@@ -108,7 +108,10 @@ const deleteServiceController = async ({
 
 const getServicesController = async () => {
     try {
-        const services = await ServiceModel.find();
+        const services = (await ServiceModel.find()).map((service) => ({
+            ...service.toObject(),
+            _id: service._id.toString(),
+        }));
         return {
             status: "OK",
             data: services,

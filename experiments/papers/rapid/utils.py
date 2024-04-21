@@ -1,6 +1,5 @@
 import gc
 import torch
-import numpy as np
 
 
 def clear_hw_cache():

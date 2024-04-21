@@ -1,3 +1,4 @@
+dist/
 data/
 output/
 __pycache__/
@@ -9,7 +10,6 @@ ssh.log
 qdrant_storage/
 wal/
 loki*
-jar/
 *.log
 *.yml
 

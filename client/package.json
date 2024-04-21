@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:next": "next dev",
-    "dev:wss": "cross-env PORT=3001 tsx watch server/wssDevServer.ts",
-    "dev": "npm-run-all dev:*",
-    "build": "next build",
-    "start": "next start",
+    "start": "cross-env NODE_ENV=production node dist/prodServer.js",
+    "dev": "concurrently 'cross-env PORT=3001 tsx watch server/wssDevServer.ts --tsconfig tsconfig.server.json' 'next dev'",
+    "build:server": "tsc --project tsconfig.server.json",
+    "build:next": "next build",
+    "build": "npm run build:server && npm run build:next",
     "lint": "next lint"
   },
   "dependencies": {
@@ -34,9 +34,11 @@
     "clsx": "^2.1.0",
     "dayjs": "^1.11.10",
     "dotenv": "^16.4.5",
+    "fix-esm": "^1.0.1",
     "kafkajs": "^2.2.4",
     "lucide-react": "^0.364.0",
     "luxon": "^3.4.4",
+    "mantine-form-zod-resolver": "^1.1.0",
     "mongodb": "^6.5.0",
     "mongoose": "^8.2.4",
     "next": "14.1.4",
@@ -47,21 +49,22 @@
     "tailwind-merge": "^2.2.2",
     "tailwindcss-animate": "^1.0.7",
     "ws": "^8.16.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.5"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
+    "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "eslint": "^8",
     "eslint-config-next": "14.1.4",
-    "npm-run-all": "^4.1.5",
     "postcss": "^8.4.38",
     "postcss-preset-mantine": "^1.13.0",
     "postcss-simple-vars": "^7.0.1",
     "tailwindcss": "^3.3.0",
+    "ts-node": "^10.9.2",
     "tsx": "^4.7.1",
     "typescript": "^5"
   }

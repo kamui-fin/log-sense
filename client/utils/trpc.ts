@@ -5,6 +5,9 @@ import { createTRPCClient, createWSClient, wsLink } from "@trpc/client";
 import { NextPageContext } from "next";
 import superjson from "superjson";
 
+const WS_PORT = process.env.NODE_ENV === "production" ? 3000 : 3002;
+const WS_URL = `ws://localhost:${WS_PORT}`;
+
 function getBaseUrl() {
     if (typeof window !== "undefined")
         // browser should use relative path
@@ -41,7 +44,7 @@ function getEndingLink(ctx: NextPageContext | undefined): TRPCLink<AppRouter> {
         },
     });
     const websocketLink = wsLink({
-        client: createWSClient({ url: `ws://localhost:3001` }),
+        client: createWSClient({ url: WS_URL }),
         /**
          * @link https://trpc.io/docs/v11/data-transformers
          */

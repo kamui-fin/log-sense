@@ -4,8 +4,11 @@ import { logRouter } from "./routers/log";
 import { publicProcedure, router } from "./trpc";
 import dbConnect from "./db";
 import { createKafka } from "./stream";
+import { CreateWSSContextFnOptions } from "@trpc/server/adapters/ws";
 
-export const createContext = async (opts: CreateNextContextOptions) => {
+export const createContext = async (
+    opts: CreateNextContextOptions | CreateWSSContextFnOptions
+) => {
     await dbConnect();
     const kafkaConn = createKafka();
     const producer = kafkaConn.producer();

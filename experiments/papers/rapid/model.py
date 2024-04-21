@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.metrics import classification_report
 from sklearn.metrics import precision_recall_curve, f1_score, roc_auc_score
 
-from rapid.build_db import build_db, build_normal_db, distance, get_core_set
+from rapid.build_db import build_db, distance, get_core_set
 
 
 def predict_test(test_X, normal_db, output_dir, knn):

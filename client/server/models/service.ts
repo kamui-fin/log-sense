@@ -1,23 +1,27 @@
-import { getModelForClass, modelOptions, mongoose, prop } from "@typegoose/typegoose";
+import {
+    getModelForClass,
+    modelOptions,
+    mongoose,
+    prop,
+} from "@typegoose/typegoose";
 
 class Service {
-    id: mongoose.Types.ObjectId;
-    _id: mongoose.Types.ObjectId;
+    _id!: mongoose.Types.ObjectId;
 
     @prop({ required: true, unique: true, type: String })
-    name: string;
+    name!: string;
 
     @prop({ type: String })
-    description: string;
+    description!: string;
 
     @prop({ default: false, type: Boolean })
-    isTrain: boolean;
+    isTrain!: boolean;
 
     @prop({ type: Number })
-    threshold: number;
+    threshold!: number;
 
     @prop({ type: Number })
-    coresetSize: number;
+    coresetSize!: number;
 }
 
 const ServiceModel = getModelForClass(Service);

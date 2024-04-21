@@ -1,0 +1,9 @@
+torch
+requests
+qdrant-client
+kafka-python
+transformers
+tqdm
+dataclasses-json
+pymongo
+schedule
