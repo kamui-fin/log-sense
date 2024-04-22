@@ -41,10 +41,9 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
         return timestamp + duration.as("milliseconds");
     };
 
-    const lokiDataSourceId = "adioh7pfmw7i8b"; // TODO: Make this configurable
     const panes = {
         tr1: {
-            datasource: lokiDataSourceId,
+            datasource: "loki",
             queries: [
                 {
                     refId: "A",
@@ -54,7 +53,7 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
                     queryType: "range",
                     datasource: {
                         type: "loki",
-                        uid: lokiDataSourceId,
+                        uid: "loki",
                     },
                     editorMode: "builder",
                     legendFormat: "",
@@ -88,7 +87,9 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
     params.set("orgId", "1");
     params.set("schemaVersion", "1");
     params.set("panes", JSON.stringify(panes));
-    const grafanaUrl = "http://localhost:3030/explore?" + params.toString();
+
+    const grafanaUrl =
+        `${process.env.GRAFANA_URI}/explore?` + params.toString();
 
     return (
         <Table.Tr key={log.hash}>

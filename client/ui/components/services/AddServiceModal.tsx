@@ -25,9 +25,9 @@ interface Props {
 export const AddService = ({ opened, open, close }: Props) => {
     const utils = trpc.useUtils();
 
-    const { mutate: createService } = trpc.config.createService.useMutation({
+    const { mutate: createService } = trpc.services.createService.useMutation({
         onSuccess() {
-            utils.config.getServices.invalidate();
+            utils.services.getServices.invalidate();
             close();
         },
     });

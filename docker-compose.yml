@@ -15,6 +15,7 @@ services:
         environment:
             - MONGODB_URI=mongodb://mongodb:27017/log_sense
             - KAFKA_BROKER_URI=kafka:9092
+            - GRAFANA_URI=http://grafana:3000
         depends_on:
             - mongodb
             - kafka
@@ -147,6 +148,7 @@ services:
                   isDefault: true
                   version: 1
                   editable: false
+                  uid: loki
                 EOF
                 /run.sh
         image: grafana/grafana:latest
