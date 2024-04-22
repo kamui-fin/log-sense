@@ -7,9 +7,7 @@ import { Button, Modal, NumberInput, Switch, TextInput } from "@mantine/core";
 const createServiceSchema = z.object({
     name: z.string(),
     description: z.string(),
-    isTrain: z.boolean().default(false),
     threshold: z.number().optional(),
-    coresetSize: z.number().optional(),
     is_train: z.boolean().default(false),
     coreset_size: z.number().default(2),
     enable_trace: z.boolean().default(false),

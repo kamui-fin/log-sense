@@ -1,8 +1,8 @@
-import { NumberInput, Switch, Button } from "@mantine/core"
-import z from "zod"
+import { NumberInput, Switch, Button } from "@mantine/core";
+import z from "zod";
 import { ServiceCardProps } from "../ServiceCard";
 import { useForm, zodResolver } from "@mantine/form";
-
+import { FormEventHandler } from "react";
 
 /*
     top-k -- number
@@ -32,7 +32,11 @@ const updateGPTSchema = z.object({
     enable_trace: z.boolean().default(false),
 });
 
-export const GPTTab = ({service, onGoBack, onSubmitTab} : ServiceCardProps) => {
+export const GPTTab = ({
+    service,
+    onGoBack,
+    onSubmitTab,
+}: ServiceCardProps) => {
     const {
         top_k,
         max_pretrain,
@@ -42,7 +46,7 @@ export const GPTTab = ({service, onGoBack, onSubmitTab} : ServiceCardProps) => {
         train_batch_size,
         num_episodes,
         num_epochs,
-        enable_trace
+        enable_trace,
     } = service;
 
     const form = useForm<UpdateGPTInput>({
@@ -56,16 +60,16 @@ export const GPTTab = ({service, onGoBack, onSubmitTab} : ServiceCardProps) => {
             num_episodes,
             num_epochs,
             enable_trace,
-            resolver: zodResolver(updateGPTSchema),
         },
+        validate: zodResolver(updateGPTSchema),
     });
 
-    const submitToTop = (e) => {
+    const submitToTop: FormEventHandler = (e) => {
         e.preventDefault();
-        onSubmitTab(form.getValues())
-    }
+        onSubmitTab(form.getValues());
+    };
 
-    return(
+    return (
         <div className="grid grid-cols-3 gap-6">
             <form onSubmit={submitToTop}>
                 <NumberInput
@@ -89,7 +93,7 @@ export const GPTTab = ({service, onGoBack, onSubmitTab} : ServiceCardProps) => {
                     mt="md"
                     {...form.getInputProps("vocab_size")}
                 />
-                
+
                 <NumberInput
                     label="Pretraining LR"
                     description="Learning Rate for Pretraining"
@@ -141,6 +145,5 @@ export const GPTTab = ({service, onGoBack, onSubmitTab} : ServiceCardProps) => {
                 </div>
             </form>
         </div>
-        
-    )
-}
+    );
+};

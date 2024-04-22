@@ -24,9 +24,9 @@ interface Service {
     _id: string;
     name: string;
     description: string;
-    isTrain: boolean;
+    is_train: boolean;
     threshold: number;
-    coresetSize: number;
+    coreset_size: number;
     enable_trace: boolean;
     trace_regex: string;
     top_k: number;
@@ -47,22 +47,23 @@ export interface ServiceCardProps {
 }
 
 const updateServiceSchema = z.object({
-    isTrain: z.boolean().default(false),
+    is_train: z.boolean().default(false),
     threshold: z.number().optional(),
-    coresetSize: z.number().optional(),
+    coreset_size: z.number().optional(),
 });
 
 type UpdateServiceInput = z.TypeOf<typeof updateServiceSchema>;
 
 export function ServiceCard({ service, onConfigClick }: ServiceCardProps) {
-    const { _id, name, description, isTrain, threshold, coresetSize } = service;
+    const { _id, name, description, is_train, threshold, coreset_size } =
+        service;
     const handleConfigClick = onConfigClick;
 
     const form = useForm<UpdateServiceInput>({
         initialValues: {
-            isTrain,
+            is_train,
             threshold,
-            coresetSize,
+            coreset_size,
         },
         validate: zodResolver(updateServiceSchema),
     });

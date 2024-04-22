@@ -1,8 +1,8 @@
-import { NumberInput, Button } from "@mantine/core"
+import { NumberInput, Button } from "@mantine/core";
 import { ServiceCardProps } from "../ServiceCard";
 import { useForm, zodResolver } from "@mantine/form";
 import { z } from "zod";
-
+import { FormEventHandler } from "react";
 
 type UpdateRAPIDInput = z.TypeOf<typeof updateRAPIDSchema>;
 
@@ -11,24 +11,24 @@ const updateRAPIDSchema = z.object({
     coreset_size: z.number().optional(),
 });
 
-export const RAPIDTab = ({service, onSubmitTab}: ServiceCardProps) => {
-    const {coreset_size, threshold} = service;
+export const RAPIDTab = ({ service, onSubmitTab }: ServiceCardProps) => {
+    const { coreset_size, threshold } = service;
 
     const form = useForm<UpdateRAPIDInput>({
         initialValues: {
             coreset_size,
             threshold,
-            resolver: zodResolver(updateRAPIDSchema),
         },
+        validate: zodResolver(updateRAPIDSchema),
     });
 
-    const submitToTop = (e) => {
+    const submitToTop: FormEventHandler = (e) => {
         e.preventDefault();
-        console.log(service)
-        onSubmitTab(form.getValues())
-    }
+        console.log(service);
+        onSubmitTab(form.getValues());
+    };
 
-    return(
+    return (
         <div className="grid grid-cols-3 gap-6">
             <form onSubmit={submitToTop}>
                 <NumberInput
@@ -52,6 +52,5 @@ export const RAPIDTab = ({service, onSubmitTab}: ServiceCardProps) => {
                 </div>
             </form>
         </div>
-        
-    )
-}
+    );
+};
