@@ -1,3 +1,5 @@
+from pathlib import Path
+from minio import Minio
 import requests
 import sys
 import os
@@ -10,6 +12,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from log_gpt import LogGPTInferenceAPI
 from models import (
+    get_config,
     GlobalConfig,
     LogSequenceEvent,
     ServiceConfig,
@@ -22,31 +25,10 @@ from qdrant_client import QdrantClient
 import logging
 from rapid import RapidInferenceAPI
 
-QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
-QDRANT_PORT = os.getenv("QDRANT_PORT", 6333)
 KAFKA_URI = os.getenv("KAFKA_URI", "localhost:9092")
-LOGSENSE_BACKEND_URI = os.getenv("LOGSENSE_BACKEND_URI", "http://localhost:3000")
-
 producer = KafkaProducer(bootstrap_servers=KAFKA_URI)
-client = QdrantClient(QDRANT_HOST, port=QDRANT_PORT)
 
-logging.basicConfig(level=logging.INFO)
-
-
-def get_config() -> GlobalConfig:
-    response = requests.get(
-        f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getServices"
-    ).json()
-    service_list = response["result"]["data"]["json"]["data"]
-    configs = {}
-    for service in service_list:
-        name = service["name"]
-        del service["_id"]
-        del service["name"]
-        del service["description"]
-        del service["__v"]
-        configs[name] = ServiceConfig(**service)
-    return GlobalConfig(configs=configs)
+logging.basicConfig(level=logging.INFO)  # TODO: replicate in all other microservices
 
 
 def deserializer(msg):
@@ -57,6 +39,9 @@ def deserializer(msg):
 
 
 def listen_inference_rapid():
+    QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+    QDRANT_PORT = os.getenv("QDRANT_PORT", 6333)
+    client = QdrantClient(QDRANT_HOST, port=QDRANT_PORT)
     consumer = KafkaConsumer(
         f"rapid-processed",
         "config-change",
@@ -122,21 +107,42 @@ def listen_inference_gpt():
     - We feed this batch to the model at once and mark the timestamp range as anomalous (for now).
     - Frontend should prepare for a different kind of model output compared to rapid inference.
     """
+    cache_path = Path(os.getenv("CACHE_PATH", "/tmp"))
+
+    if not cache_path.exists():
+        logging.error("Cache path does not exist")
+        return
 
     consumer = KafkaConsumer(
         f"gpt-processed",
         "config-change",
+        "model-update",
         bootstrap_servers=[KAFKA_URI],
         group_id="gpt-inference-group",
         auto_offset_reset="latest",
         enable_auto_commit=True,
         value_deserializer=deserializer,
     )
+    MINIO_URI = os.getenv("MINIO_URI", "localhost:9000")
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", None)
+    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", None)
+
+    if MINIO_SECRET_KEY is None or MINIO_ACCESS_KEY is None:
+        logging.error("Minio credentials not found")
+        return
+
+    minio_client = Minio(
+        MINIO_URI,
+        access_key=MINIO_ACCESS_KEY,
+        secret_key=MINIO_SECRET_KEY,
+        secure=False,
+    )
     config = get_config()
     logging.info(f"LogGPT Inference service started")
     logging.info(f"Using previous config {config}")
     inferencers = {
-        svc: LogGPTInferenceAPI(svc, cfg) for svc, cfg in config.configs.items()
+        svc: LogGPTInferenceAPI(svc, cfg, cache_path, minio_client)
+        for svc, cfg in config.configs.items()
     }
     for message in consumer:
         if message.topic == "config-change":
@@ -144,6 +150,9 @@ def listen_inference_gpt():
             logging.info(f"Received config update: {config}")
             for inferencer in inferencers.values():
                 inferencer.reload_config(config.configs[inferencer.service])
+        elif message.topic == "model-update":
+            for inferencer in inferencers.values():
+                inferencer.fetch_new_weights()
         elif message.value.get("invalid"):
             continue
         else:

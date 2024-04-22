@@ -1,5 +1,8 @@
 from math import floor
+import logging
+import os
 from pathlib import Path
+from minio import Minio
 from tqdm import tqdm
 from torch.optim import AdamW
 from transformers import GPT2LMHeadModel, GPT2Config
@@ -33,12 +36,18 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class LogGPTInferenceAPI:
-    def __init__(self, service: str, config: ServiceConfig, cache_path=Path("cache")):
+    def __init__(
+        self, service: str, config: ServiceConfig, cache_path: Path, minio_client: Minio
+    ):
         self.service = service
         self.config = config
-        self.cache_path = cache_path
-        self.model_output_path = self.cache_path / "model.pt"
+        self.minio_client = minio_client
+        self.model_name = f"model-{service}.pt"
+        self.model_output_path = cache_path / self.model_name
         self.setup_model_optimizer(config.vocab_size)
+
+        if not self.minio_client.bucket_exists("models"):
+            self.minio_client.make_bucket("models")
 
     def reload_config(self, config: ServiceConfig):
         self.config = config
@@ -86,10 +95,9 @@ class LogGPTInferenceAPI:
 
         self.model = GPT2LMHeadModel(configuration).to(device)
         self.optimizer = AdamW(self.model.parameters(), lr=self.config.lr_pretraining)
-        if self.model_output_path and self.model_output_path.exists():
-            self.load_model(self.model_output_path)
+        self.load_model(self.model_output_path)
 
-    def pretrain_model(self, train_dataloader):
+    def pretrain_model(self, train_dataloader, writer):
         print("Beginning model pre-training...")
         self.model.train()
         for epoch in tqdm(range(self.config.num_epochs), desc="Epoch: "):
@@ -104,12 +112,15 @@ class LogGPTInferenceAPI:
                 self.optimizer.step()
 
             train_loss /= len(train_dataloader)
+            writer.add_scalar("Loss/train", train_loss, epoch)
             print(
                 f"Epoch {epoch+1}/{self.config.num_epochs}, Training Loss: {train_loss / len(batch)}"
             )
 
             print("Saving model...")
             self.save_model(self.model_output_path)
+
+    ### NOTE: save_model() and load_model() are called in completely different nodes during deployment
 
     def save_model(self, saved_model_path):
         state = {
@@ -118,7 +129,25 @@ class LogGPTInferenceAPI:
         }
         torch.save(state, saved_model_path)
 
+        # upload the model to minio bucket
+        try:
+            self.minio_client.fput_object("models", self.model_name, saved_model_path)
+        except:
+            logging.error("Failed to upload model to minio")
+
+    def fetch_new_weights(self):
+        self.load_model(None)  # empty cache means force pull from minio
+
     def load_model(self, saved_model_path):
+        if not saved_model_path or not saved_model_path.exists():
+            # download the model from minio bucket
+            try:
+                self.minio_client.fget_object(
+                    "models", self.model_name, saved_model_path
+                )
+            except:
+                # no such model existing, return
+                return
         saved_model = torch.load(saved_model_path)
         self.model.load_state_dict(saved_model["state_dict"], strict=False)
         self.optimizer.load_state_dict(saved_model["optimizer"])
@@ -146,7 +175,6 @@ class LogGPTInferenceAPI:
             "input_ids": input_ids,
             "attention_mask": (input_ids != pad_token_id).float(),
         }
-        print(prompt)
         gen_seq = self.model.generate(
             **prompt,
             min_length=len(sequence),
@@ -160,7 +188,7 @@ class LogGPTInferenceAPI:
         loss = self.compute_loss(sequence, logits, start_gen_pos)
         return loss
 
-    def finetune(self, train_set):
+    def finetune(self, train_set, writer):
         print("Beginning model finetuning...")
         last_episode_loss = 0
         count = 0
@@ -176,6 +204,7 @@ class LogGPTInferenceAPI:
                 train_loss += self.step(sequence)
             train_loss /= len(finetune_trainset)
 
+            writer.add_scalar("Loss/finetune", train_loss, episode)
             print(
                 f"Episode {episode}/{self.config.num_episodes} (finetune): {train_loss}"
             )

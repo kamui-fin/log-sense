@@ -1,8 +1,12 @@
+import os
+import requests
 import torch
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 from torch.utils.data import Dataset
+
+LOGSENSE_BACKEND_URI = os.getenv("LOGSENSE_BACKEND_URI", "http://localhost:3000")
 
 
 @dataclass_json
@@ -89,3 +93,19 @@ class ChunkDataset(Dataset):
             "attention_mask": torch.tensor(sample["attention_mask"], device=device),
             "labels": torch.tensor(sample["labels"], device=device),
         }
+
+
+def get_config() -> GlobalConfig:
+    response = requests.get(
+        f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getServices"
+    ).json()
+    service_list = response["result"]["data"]["json"]["data"]
+    configs = {}
+    for service in service_list:
+        name = service["name"]
+        del service["_id"]
+        del service["name"]
+        del service["description"]
+        del service["__v"]
+        configs[name] = ServiceConfig(**service)
+    return GlobalConfig(configs=configs)
