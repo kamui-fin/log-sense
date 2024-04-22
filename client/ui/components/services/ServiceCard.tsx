@@ -1,15 +1,17 @@
 import { IconHeart, IconTrash } from "@tabler/icons-react";
 import { useForm, zodResolver } from "@mantine/form";
+import Link from "next/link";
 import {
-  Card,
-  Image,
-  Text,
-  Group,
-  Badge,
-  Button,
-  ActionIcon,
-  Select,
-  NumberInput,
+    Card,
+    Image,
+    Text,
+    Group,
+    Badge,
+    Button,
+    ActionIcon,
+    Select,
+    NumberInput,
+    Overlay,
 } from "@mantine/core";
 import classes from "./ServiceCard.module.css";
 import { Switch } from "@mantine/core";
@@ -17,112 +19,106 @@ import { useQueryClient } from "@tanstack/react-query";
 import { trpc } from "../../../utils/trpc";
 import { z } from "zod";
 import { Update } from "next/dist/build/swc";
-import { ObjectId } from "mongoose";
 
 interface Service {
-  _id: string;
-  name: string;
-  description: string;
-  isTrain: boolean;
-  threshold: number;
-  coresetSize: number;
+    _id: string;
+    name: string;
+    description: string;
+    isTrain: boolean;
+    threshold: number;
+    coresetSize: number;
+    enable_trace: boolean;
+    trace_regex: string;
+    top_k: number;
+    max_pretrain: number;
+    context_size: number;
+    lr_pretraining: number;
+    lr_finetuning: number;
+    train_batch_size: number;
+    num_episodes: number;
+    num_epochs: number;
+    vocab_size: number;
 }
 
-interface ServiceCardProps {
-  service: Service;
+export interface ServiceCardProps {
+    service: Service;
+    onConfigClick: any;
+    onSubmitTab: any;
 }
 
 const updateServiceSchema = z.object({
-  isTrain: z.boolean().default(false),
-  threshold: z.number().optional(),
-  coresetSize: z.number().optional(),
+    isTrain: z.boolean().default(false),
+    threshold: z.number().optional(),
+    coresetSize: z.number().optional(),
 });
 
 type UpdateServiceInput = z.TypeOf<typeof updateServiceSchema>;
 
-export function ServiceCard({ service }: ServiceCardProps) {
-  const { name, description, isTrain, threshold, coresetSize } = service;
-  const form = useForm<UpdateServiceInput>({
-    initialValues: {
-      isTrain,
-      threshold,
-      coresetSize,
-    },
-    validate: zodResolver(updateServiceSchema),
-  });
+export function ServiceCard({ service, onConfigClick }: ServiceCardProps) {
+    const { _id, name, description, isTrain, threshold, coresetSize } = service;
+    const handleConfigClick = onConfigClick;
 
-  const utils = trpc.useUtils();
-  const { mutate: updateService } = trpc.services.updateService.useMutation({
-    onSuccess() {
-      utils.services.getServices.invalidate();
-    },
-  });
-  const { mutate: deleteService } = trpc.services.deleteService.useMutation({
-    onSuccess() {
-      utils.services.getServices.invalidate();
-    },
-  });
+    const form = useForm<UpdateServiceInput>({
+        initialValues: {
+            isTrain,
+            threshold,
+            coresetSize,
+        },
+        validate: zodResolver(updateServiceSchema),
+    });
 
-  const onDeleteHandler = (serviceId: string) => {
-    deleteService({ id: serviceId });
-  };
+    const utils = trpc.useUtils();
+    const { mutate: updateService } = trpc.services.updateService.useMutation({
+        onSuccess() {
+            utils.services.getServices.invalidate();
+        },
+    });
+    const { mutate: deleteService } = trpc.services.deleteService.useMutation({
+        onSuccess() {
+            utils.services.getServices.invalidate();
+        },
+    });
 
-  const onUpdateHandler = form.onSubmit((values) => {
-    updateService({ params: { id: service._id }, body: values });
-  });
-  return (
-    <Card withBorder radius="md" p="md" className={classes.card}>
-      <form onSubmit={onUpdateHandler}>
-        <Card.Section className={classes.section} mt="sm">
-          <Text fz="lg" fw={700}>
-            {name}
-          </Text>
-          <Text fz="sm" mt="xs" c="dimmed">
-            {description}
-          </Text>
+    const onDeleteHandler = (serviceId: string) => {
+        deleteService({ id: serviceId });
+    };
 
-          <NumberInput
-            label="Coreset Size"
-            description="Number of neighbors to use for RAPID"
-            placeholder="2"
-            mt="md"
-            {...form.getInputProps("coresetSize")}
-          />
+    const onUpdateHandler = form.onSubmit((values) => {
+        updateService({ params: { id: service._id }, body: values });
+    });
 
-          <NumberInput
-            label="Inference Threshold"
-            description="Converts a raw score to a binary decision with threshold"
-            placeholder="-470.8"
-            mt="xs"
-            {...form.getInputProps("threshold")}
-          />
+    return (
+        <Card radius="md" className={classes.card}>
+            <Overlay className={classes.overlay} opacity={0.55} zIndex={0} />
 
-          <Switch
-            color="green"
-            label="Training mode"
-            description="All logs are assumed to be normal"
-            size="md"
-            mt="lg"
-            mb="xs"
-            defaultChecked={isTrain}
-            {...form.getInputProps("isTrain")}
-          />
-        </Card.Section>
+            <div className={classes.content}>
+                <Text size="lg" fw={700} className={classes.title}>
+                    {name}
+                </Text>
 
-        <Group mt="xs">
-          <Button type="submit" radius="md" style={{ flex: 1 }}>
-            Save Config
-          </Button>
-          <ActionIcon
-            variant="default"
-            radius="md"
-            size={36}
-            onClick={() => onDeleteHandler(service._id)}
-          >
-            <IconTrash className={classes.like} stroke={1.5} />
-          </ActionIcon>
-        </Group>
-      </form>
-    </Card>
-  );
+                <Text size="sm" className={classes.description}>
+                    {description}
+                </Text>
+                <Group mt="xs">
+                    <Button
+                        onClick={() => handleConfigClick(service)}
+                        className={classes.action}
+                        variant="white"
+                        color="dark"
+                        size="xs"
+                    >
+                        Config
+                    </Button>
+                    <ActionIcon
+                        variant="default"
+                        radius="md"
+                        size={36}
+                        onClick={() => onDeleteHandler(service._id)}
+                    >
+                        <IconTrash className={classes.like} stroke={1.5} />
+                    </ActionIcon>
+                </Group>
+            </div>
+        </Card>
+    );
 }

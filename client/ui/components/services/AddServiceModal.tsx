@@ -1,5 +1,4 @@
-import { useForm } from "@mantine/form";
-import { zodResolver } from "mantine-form-zod-resolver";
+import { useForm, zodResolver } from "@mantine/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { trpc } from "../../../utils/trpc";
@@ -11,6 +10,19 @@ const createServiceSchema = z.object({
     isTrain: z.boolean().default(false),
     threshold: z.number().optional(),
     coresetSize: z.number().optional(),
+    is_train: z.boolean().default(false),
+    coreset_size: z.number().default(2),
+    enable_trace: z.boolean().default(false),
+    trace_regex: z.string().optional(),
+    top_k: z.number().default(80),
+    max_pretrain: z.number().default(10_000),
+    context_size: z.number().default(512),
+    lr_pretraining: z.number().default(1e-4),
+    lr_finetuning: z.number().default(1e-6),
+    train_batch_size: z.number().default(16),
+    num_episodes: z.number().default(10),
+    num_epochs: z.number().default(10),
+    vocab_size: z.number().default(500),
 });
 
 type CreateServiceInput = z.TypeOf<typeof createServiceSchema>;
@@ -52,30 +64,6 @@ export const AddService = ({ opened, open, close }: Props) => {
                     fz="sm"
                     mt="xs"
                     {...methods.getInputProps("description")}
-                />
-                <NumberInput
-                    label="Coreset Size"
-                    description="Number of neighbors to use for RAPID"
-                    placeholder="2"
-                    mt="xs"
-                    {...methods.getInputProps("coresetSize")}
-                />
-
-                <NumberInput
-                    label="Inference Threshold"
-                    description="Converts a raw score to a binary decision with threshold"
-                    placeholder="-470.8"
-                    mt="xs"
-                    {...methods.getInputProps("threshold")}
-                />
-                <Switch
-                    color="green"
-                    label="Training mode"
-                    description="All logs are assumed to be normal"
-                    size="md"
-                    mt="lg"
-                    mb="md"
-                    {...methods.getInputProps("isTrain")}
                 />
                 <div className="flex justify-end pt-4">
                     <Button type="submit" radius="md">
