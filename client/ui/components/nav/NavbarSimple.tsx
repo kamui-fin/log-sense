@@ -20,6 +20,7 @@ import { usePathname } from "next/navigation";
 const data = [
     { link: "/", label: "Anomalies", icon: IconBellRinging },
     { link: "/services", label: "Services", icon: IconDatabaseImport },
+    { link: "/general_settings", label: "General Settings", icon: IconSettings},
 ];
 
 export function NavbarSimple() {
