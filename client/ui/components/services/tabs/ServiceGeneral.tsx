@@ -37,25 +37,24 @@ export const GeneralTab = ({ service, onGoBack }: ServiceCardProps) => {
 
     const utils = trpc.useUtils();
     const { mutate: updateService } = trpc.services.updateService.useMutation({
-            onSuccess() {
-                utils.services.getServices.invalidate();
-            },
-        });
+        onSuccess() {
+            utils.services.getServices.invalidate();
+        },
+    });
 
-    const submitGeneral: FormEventHandler = (values) => {
+    const submitGeneral = (values: UpdateGeneralInput) => {
         updateService({
-            params: { id: service._id, type: "SERVICE" },
+            params: { id: service._id },
             body: values,
         });
-        onGoBack();
     };
-
-    
 
     return (
         <div>
             <div className="grid grid-cols-3 gap-6 mb-4">
-                <form onSubmit={form.onSubmit((values) => submitGeneral(values))}>
+                <form
+                    onSubmit={form.onSubmit((values) => submitGeneral(values))}
+                >
                     <TextInput
                         label="Name"
                         mt="md"

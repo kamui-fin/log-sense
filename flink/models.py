@@ -2,6 +2,11 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
+@dataclass_json
+@dataclass
+class RegexSub:
+    pattern: str
+    replacement: str
 
 @dataclass_json
 @dataclass
@@ -24,6 +29,8 @@ class ServiceConfig:
     vocab_size: int
 
     trace_regex: Optional[str] = ""
+
+    regex_subs: List[RegexSub] = []
 
 
 @dataclass_json

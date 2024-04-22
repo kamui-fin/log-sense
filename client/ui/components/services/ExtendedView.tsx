@@ -25,29 +25,20 @@ export const ExtendedView = ({ service, onGoBack }: ServiceCardProps) => {
     return (
         <div>
             <ServiceHeader name={service.name} goBack={onGoBack} />
-            <Tabs>
+            <Tabs defaultValue={"general"}>
                 <Tabs.List>
                     <Tabs.Tab value="general">General</Tabs.Tab>
                     <Tabs.Tab value="rapid">RAPID</Tabs.Tab>
                     <Tabs.Tab value="gpt">LogGPT</Tabs.Tab>
                 </Tabs.List>
                 <Tabs.Panel value="general">
-                    <GeneralTab
-                        service={service}
-                        onGoBack={onGoBack}
-                    />
+                    <GeneralTab service={service} onGoBack={onGoBack} />
                 </Tabs.Panel>
                 <Tabs.Panel value="rapid">
-                    <RAPIDTab
-                        service={service}
-                        onGoBack={onGoBack}
-                    />
+                    <RAPIDTab service={service} onGoBack={onGoBack} />
                 </Tabs.Panel>
                 <Tabs.Panel value="gpt">
-                    <GPTTab
-                        service={service}
-                        onGoBack={onGoBack}
-                    />
+                    <GPTTab service={service} onGoBack={onGoBack} />
                 </Tabs.Panel>
             </Tabs>
         </div>

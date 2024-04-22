@@ -50,7 +50,7 @@ interface Service {
 
 export interface ServiceCardProps {
     service: Service;
-    onConfigClick: any;
+    onConfigClick?: any;
     onGoBack: any;
 }
 
@@ -105,7 +105,7 @@ export function ServiceCard({ service, onConfigClick }: ServiceCardProps) {
             withBorder
             className={classes.card}
         >
-            <Overlay className={classes.overlay} opacity={0.55} zIndex={0} />
+            {/* <Overlay className={classes.overlay} zIndex={0} /> */}
 
             <div className={classes.content}>
                 <Text size="lg" fw={700} className={classes.title}>

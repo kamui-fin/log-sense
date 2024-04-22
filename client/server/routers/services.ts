@@ -21,6 +21,14 @@ const createServiceSchema = z.object({
     num_episodes: z.number().default(10),
     num_epochs: z.number().default(10),
     vocab_size: z.number().default(500),
+    regex_subs: z
+        .array(
+            z.object({
+                pattern: z.string(),
+                replacement: z.string(),
+            })
+        )
+        .default([]),
 });
 
 const params = z.object({
@@ -46,6 +54,14 @@ const updateServiceSchema = z.object({
         num_episodes: z.number().optional(),
         num_epochs: z.number().optional(),
         vocab_size: z.number().optional(),
+        regex_subs: z
+            .array(
+                z.object({
+                    pattern: z.string(),
+                    replacement: z.string(),
+                })
+            )
+            .optional(),
     }),
 });
 

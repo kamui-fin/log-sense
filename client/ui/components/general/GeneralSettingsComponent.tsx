@@ -8,9 +8,15 @@ export const GeneralSettingsComponent = () => {
                 <div>
                     <NumberInput
                         label="Grafana context time radius"
-                        description="Controls how far back in time the Grafana context will go"
+                        description="Controls how far back in time the Grafana context will go in minutes."
                         placeholder="2"
                         mt="xs"
+                        onBlur={(event) => {
+                            localStorage.setItem(
+                                "grafanaContextTimeRadius",
+                                event.target.value
+                            );
+                        }}
                     />
                 </div>
             </div>
