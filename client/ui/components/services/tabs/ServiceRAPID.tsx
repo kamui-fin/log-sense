@@ -5,7 +5,6 @@ import { z } from "zod";
 import { FormEventHandler } from "react";
 import { trpc } from "../../../../utils/trpc";
 
-
 type UpdateRAPIDInput = z.TypeOf<typeof updateRAPIDSchema>;
 
 const updateRAPIDSchema = z.object({
@@ -31,12 +30,11 @@ export const RAPIDTab = ({ service, onGoBack }: ServiceCardProps) => {
         },
     });
 
-    const submitRAPID: FormEventHandler = (values) => {
+    const submitRAPID = (values: UpdateRAPIDInput) => {
         updateService({
-            params: { id: service._id, type: "SERVICE" },
+            params: { id: service._id },
             body: values,
         });
-        onGoBack();
     };
 
     return (

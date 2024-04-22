@@ -5,7 +5,6 @@ import { useForm, zodResolver } from "@mantine/form";
 import { FormEventHandler } from "react";
 import { trpc } from "../../../../utils/trpc";
 
-
 /*
     top-k -- number
     max pretrain -- number
@@ -34,10 +33,7 @@ const updateGPTSchema = z.object({
     enable_trace: z.boolean().default(false),
 });
 
-export const GPTTab = ({
-    service,
-    onGoBack,
-}: ServiceCardProps) => {
+export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
     const {
         top_k,
         max_pretrain,
@@ -72,27 +68,29 @@ export const GPTTab = ({
         },
     });
 
-    const submitGPT: FormEventHandler = (values) => {
+    const submitGPT = (values: UpdateGPTInput) => {
         updateService({
-            params: { id: service._id, type: "SERVICE" },
+            params: { id: service._id },
             body: values,
         });
-        onGoBack();
     };
 
     return (
-        <div className="grid grid-cols-3 gap-6">
-            <form onSubmit={form.onSubmit((values) => submitGPT(values))}>
+        <div className="mb-4">
+            <form
+                onSubmit={form.onSubmit((values) => submitGPT(values))}
+                className="grid content-center justify-center grid-cols-4 gap-10 mb-4 w-full"
+            >
                 <NumberInput
                     label="Top-K"
-                    description="K-value used when evaluating Top-K during LogGPT finetuning"
+                    description="K-value during Top-K evaluation"
                     placeholder="2"
                     mt="md"
                     {...form.getInputProps("top_k")}
                 />
                 <NumberInput
                     label="Number of Pretraining Logs"
-                    description="How many log lines to pretrain on before switching to finetuning"
+                    description="# of log lines to pretrain before switching to finetuning"
                     placeholder="2"
                     mt="md"
                     {...form.getInputProps("max_pretrain")}
@@ -149,12 +147,12 @@ export const GPTTab = ({
                     defaultChecked={enable_trace}
                     {...form.getInputProps("enable_trace")}
                 />
-                <div className="flex justify-start pt-4">
-                    <Button type="submit" radius="md">
-                        Update Config
-                    </Button>
-                </div>
             </form>
+            <div className="flex justify-start pt-4">
+                <Button type="submit" radius="md">
+                    Update Config
+                </Button>
+            </div>
         </div>
     );
 };

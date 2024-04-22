@@ -66,7 +66,13 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
                         Number.parseInt(
                             log.startTimestamp.toString().slice(0, 13)
                         ),
-                        Duration.fromObject({ hours: 1 })
+                        Duration.fromObject({
+                            minutes: Number.parseInt(
+                                localStorage.getItem(
+                                    "grafanaContextTimeRadius"
+                                ) || "1"
+                            ),
+                        })
                     )
                 ),
                 to: String(
@@ -74,14 +80,18 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
                         Number.parseInt(
                             log.endTimestamp.toString().slice(0, 13)
                         ),
-                        Duration.fromObject({ hours: 1 })
+                        Duration.fromObject({
+                            minutes: Number.parseInt(
+                                localStorage.getItem(
+                                    "grafanaContextTimeRadius"
+                                ) || "1"
+                            ),
+                        })
                     )
                 ),
             },
         },
     };
-
-    console.log(panes.tr1.queries[0].expr);
 
     const params = new URLSearchParams();
     params.set("orgId", "1");
