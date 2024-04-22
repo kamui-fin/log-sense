@@ -2,7 +2,14 @@ import { useForm, zodResolver } from "@mantine/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { trpc } from "../../../utils/trpc";
-import { Button, Modal, NumberInput, Switch, TextInput } from "@mantine/core";
+import {
+    Button,
+    Modal,
+    NumberInput,
+    Switch,
+    TextInput,
+    Textarea,
+} from "@mantine/core";
 
 const createServiceSchema = z.object({
     name: z.string(),
@@ -57,7 +64,7 @@ export const AddService = ({ opened, open, close }: Props) => {
                     fw={500}
                     {...methods.getInputProps("name")}
                 />
-                <TextInput
+                <Textarea
                     label="Description"
                     fz="sm"
                     mt="xs"

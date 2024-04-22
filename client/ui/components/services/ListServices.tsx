@@ -5,7 +5,7 @@ import { ExtendedView } from "./ExtendedView";
 import { ListHeader } from "./ListHeader";
 
 export const ListServices = () => {
-    const { data: services } = trpc.config.getServices.useQuery("getServices", {
+    const { data: services } = trpc.services.getServices.useQuery(undefined, {
         staleTime: 5 * 1000,
         select: (data) => data?.data,
     });
@@ -13,7 +13,7 @@ export const ListServices = () => {
     const [selectedService, setSelectedService] = useState(null);
 
     const handleConfigClick = (service) => {
-        console.log(service)
+        console.log(service);
         setSelectedService(service);
     };
 
@@ -24,7 +24,10 @@ export const ListServices = () => {
     return (
         <div>
             {selectedService ? (
-                <ExtendedView service={selectedService} onGoBack={handleGoBackToList} />
+                <ExtendedView
+                    service={selectedService}
+                    onGoBack={handleGoBackToList}
+                />
             ) : (
                 <div>
                     <ListHeader />

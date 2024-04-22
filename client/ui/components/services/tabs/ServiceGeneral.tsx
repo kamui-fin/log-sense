@@ -1,4 +1,4 @@
-import { TextInput, NumberInput, Switch } from "@mantine/core";
+import { TextInput, NumberInput, Switch, Textarea } from "@mantine/core";
 import { ListServices } from "../ListServices";
 import { FormEventHandler, useState } from "react";
 import { PasswordInput, Tooltip, Center, Text, rem } from "@mantine/core";
@@ -44,16 +44,17 @@ export const GeneralTab = ({ service, onSubmitTab }: ServiceCardProps) => {
 
     return (
         <div>
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-3 gap-6 mb-4">
                 <form onSubmit={submitToTop}>
                     <TextInput
                         label="Name"
+                        mt="md"
                         fz="lg"
                         fw={500}
                         {...form.getInputProps("name")}
                         placeholder={name}
                     />
-                    <TextInput
+                    <Textarea
                         label="Description"
                         fz="sm"
                         mt="xs"

@@ -89,7 +89,7 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
     params.set("panes", JSON.stringify(panes));
 
     const grafanaUrl =
-        `${process.env.GRAFANA_URI}/explore?` + params.toString();
+        `${process.env.NEXT_PUBLIC_GRAFANA_URI}/explore?` + params.toString();
 
     return (
         <Table.Tr key={log.hash}>

@@ -1,4 +1,10 @@
-import { IconHeart, IconTrash } from "@tabler/icons-react";
+import {
+    IconBookmark,
+    IconEdit,
+    IconHeart,
+    IconShare,
+    IconTrash,
+} from "@tabler/icons-react";
 import { useForm, zodResolver } from "@mantine/form";
 import Link from "next/link";
 import {
@@ -12,6 +18,8 @@ import {
     Select,
     NumberInput,
     Overlay,
+    useMantineTheme,
+    rem,
 } from "@mantine/core";
 import classes from "./ServiceCard.module.css";
 import { Switch } from "@mantine/core";
@@ -58,6 +66,7 @@ export function ServiceCard({ service, onConfigClick }: ServiceCardProps) {
     const { _id, name, description, is_train, threshold, coreset_size } =
         service;
     const handleConfigClick = onConfigClick;
+    const theme = useMantineTheme();
 
     const form = useForm<UpdateServiceInput>({
         initialValues: {
@@ -89,7 +98,13 @@ export function ServiceCard({ service, onConfigClick }: ServiceCardProps) {
     });
 
     return (
-        <Card radius="md" className={classes.card}>
+        <Card
+            shadow="sm"
+            padding="lg"
+            radius="md"
+            withBorder
+            className={classes.card}
+        >
             <Overlay className={classes.overlay} opacity={0.55} zIndex={0} />
 
             <div className={classes.content}>
@@ -100,23 +115,29 @@ export function ServiceCard({ service, onConfigClick }: ServiceCardProps) {
                 <Text size="sm" className={classes.description}>
                     {description}
                 </Text>
-                <Group mt="xs">
-                    <Button
-                        onClick={() => handleConfigClick(service)}
-                        className={classes.action}
-                        variant="white"
-                        color="dark"
-                        size="xs"
-                    >
-                        Config
-                    </Button>
+
+                <Group gap={8} mr={0} className={classes.btnGroup}>
                     <ActionIcon
-                        variant="default"
+                        radius="md"
+                        size={36}
+                        className={classes.action}
+                        onClick={() => handleConfigClick(service)}
+                    >
+                        <IconEdit
+                            style={{ width: rem(16), height: rem(16) }}
+                            color={theme.colors.blue[6]}
+                        />
+                    </ActionIcon>
+                    <ActionIcon
+                        className={classes.action}
                         radius="md"
                         size={36}
                         onClick={() => onDeleteHandler(service._id)}
                     >
-                        <IconTrash className={classes.like} stroke={1.5} />
+                        <IconTrash
+                            style={{ width: rem(16), height: rem(16) }}
+                            color={theme.colors.red[6]}
+                        />
                     </ActionIcon>
                 </Group>
             </div>
