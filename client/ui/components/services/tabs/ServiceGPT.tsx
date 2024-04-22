@@ -1,4 +1,4 @@
-import { NumberInput, Switch, Button } from "@mantine/core";
+import { NumberInput, Switch, Button, TextInput } from "@mantine/core";
 import z from "zod";
 import { ServiceCardProps } from "../ServiceCard";
 import { useForm, zodResolver } from "@mantine/form";
@@ -31,6 +31,7 @@ const updateGPTSchema = z.object({
     num_episodes: z.number().optional(),
     num_epochs: z.number().optional(),
     enable_trace: z.boolean().default(false),
+    trace_regex: z.string().optional(),
 });
 
 export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
@@ -44,6 +45,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
         num_episodes,
         num_epochs,
         enable_trace,
+        trace_regex,
     } = service;
 
     const form = useForm<UpdateGPTInput>({
@@ -57,6 +59,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
             num_episodes,
             num_epochs,
             enable_trace,
+            trace_regex,
         },
         validate: zodResolver(updateGPTSchema),
     });
@@ -142,17 +145,26 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     color="green"
                     label="Enable Trace"
                     size="md"
-                    mt="lg"
-                    mb="md"
+                    mt="xs"
+                    // mb="md"
                     defaultChecked={enable_trace}
                     {...form.getInputProps("enable_trace")}
                 />
-            </form>
-            <div className="flex justify-start pt-4">
+                <TextInput
+                        label="Trace Regex"
+                        mt="xs"
+                        fz="lg"
+                        fw={500}
+                        {...form.getInputProps("trace_regex")}
+                        disabled={!enable_trace}
+                        placeholder={(trace_regex != null) ? trace_regex : "Insert Trace Regex"}
+                    />
+                <div className="flex justify-start pt-4">
                 <Button type="submit" radius="md">
                     Update Config
                 </Button>
             </div>
+            </form>
         </div>
     );
 };

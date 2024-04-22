@@ -63,7 +63,7 @@ export const GeneralTab = ({ service, onGoBack }: ServiceCardProps) => {
                         {...form.getInputProps("name")}
                         placeholder={name}
                     />
-                    <Textarea
+                    <TextInput
                         label="Description"
                         fz="sm"
                         mt="xs"
@@ -73,7 +73,7 @@ export const GeneralTab = ({ service, onGoBack }: ServiceCardProps) => {
                     <Switch
                         color="green"
                         label="Training mode"
-                        description="All logs are assumed to be normal" // this don't work :(((
+                        description="All logs are assumed to be normal"
                         size="md"
                         mt="lg"
                         mb="xs"

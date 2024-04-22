@@ -19,6 +19,7 @@ import { GeneralTab } from "./tabs/ServiceGeneral";
 import { RAPIDTab } from "./tabs/ServiceRAPID";
 import { GPTTab } from "./tabs/ServiceGPT";
 import { useEffect, useRef } from "react";
+import { RegexTab } from "./tabs/ServiceRegex";
 
 export const ExtendedView = ({ service, onGoBack }: ServiceCardProps) => {
     const iconStyle = { width: rem(12), height: rem(12) };
@@ -30,6 +31,7 @@ export const ExtendedView = ({ service, onGoBack }: ServiceCardProps) => {
                     <Tabs.Tab value="general">General</Tabs.Tab>
                     <Tabs.Tab value="rapid">RAPID</Tabs.Tab>
                     <Tabs.Tab value="gpt">LogGPT</Tabs.Tab>
+                    <Tabs.Tab value="regex">REGEX</Tabs.Tab>
                 </Tabs.List>
                 <Tabs.Panel value="general">
                     <GeneralTab service={service} onGoBack={onGoBack} />
@@ -39,6 +41,9 @@ export const ExtendedView = ({ service, onGoBack }: ServiceCardProps) => {
                 </Tabs.Panel>
                 <Tabs.Panel value="gpt">
                     <GPTTab service={service} onGoBack={onGoBack} />
+                </Tabs.Panel>
+                <Tabs.Panel value="regex">
+                    <RegexTab service={service} />
                 </Tabs.Panel>
             </Tabs>
         </div>
