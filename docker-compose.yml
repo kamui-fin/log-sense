@@ -1,268 +1,322 @@
 networks:
-  logsense:
+    logsense:
 
 services:
-  client:
-    build:
-      context: client
-      dockerfile: Dockerfile.dev
-    ports:
-      - "3000:3000"
-    networks:
-      - logsense
-    volumes:
-      - ./client:/app
-    environment:
-      - MONGODB_URI=mongodb://mongodb:27017/log_sense
-      - KAFKA_BROKER_URI=kafka:9092
-    depends_on:
-      - mongodb
-      - kafka
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+    client:
+        build:
+            context: client
+            dockerfile: Dockerfile.dev
+        ports:
+            - "3000:3000"
+        networks:
+            - logsense
+        volumes:
+            - ./client:/app
+        environment:
+            - MONGODB_URI=mongodb://mongodb:27017/log_sense
+            - KAFKA_BROKER_URI=kafka:9092
+        depends_on:
+            - mongodb
+            - kafka
+        deploy:
+            restart_policy:
+                condition: on-failure
+                delay: 5s
+                max_attempts: 50
+                window: 120s
 
-  mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    networks:
-      - logsense
+    mongodb:
+        image: mongo:latest
+        ports:
+            - "27017:27017"
+        networks:
+            - logsense
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.4
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - 22181:2181
-    networks:
-      - logsense
+    zookeeper:
+        image: confluentinc/cp-zookeeper:7.4.4
+        environment:
+            ZOOKEEPER_CLIENT_PORT: 2181
+            ZOOKEEPER_TICK_TIME: 2000
+        ports:
+            - 22181:2181
+        networks:
+            - logsense
 
-  kafka:
-    image: confluentinc/cp-kafka:7.4.4
-    depends_on:
-      - zookeeper
-    ports:
-      - 29092:29092
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    networks:
-      - logsense
+    kafka:
+        image: confluentinc/cp-kafka:7.4.4
+        depends_on:
+            - zookeeper
+        ports:
+            - 29092:29092
+        deploy:
+            restart_policy:
+                condition: on-failure
+                delay: 5s
+                max_attempts: 50
+                window: 120s
+        environment:
+            KAFKA_BROKER_ID: 1
+            KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+            KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+            KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+        networks:
+            - logsense
 
-  kafka-ui:
-    container_name: kafka-ui
-    image: provectuslabs/kafka-ui:latest
-    ports:
-      - 8080:8080
-    environment:
-      DYNAMIC_CONFIG_ENABLED: "true"
-    networks:
-      - logsense
+    kafka-ui:
+        container_name: kafka-ui
+        image: provectuslabs/kafka-ui:latest
+        ports:
+            - 8080:8080
+        environment:
+            DYNAMIC_CONFIG_ENABLED: "true"
+        networks:
+            - logsense
 
-  promtail:
-    image: grafana/promtail:2.9.0
-    volumes:
-      - ./test/input_logs:/var/log
-      - ./test/promtail.config.yml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-    networks:
-      - logsense
+    promtail:
+        image: grafana/promtail:2.9.0
+        volumes:
+            - ./test/input_logs:/var/log
+            - ./test/promtail.config.yml:/etc/promtail/config.yml
+        command: -config.file=/etc/promtail/config.yml
+        networks:
+            - logsense
 
-  loki:
-    image: grafana/loki:2.9.0
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./test/loki.config.yml:/etc/loki/local-config.yaml
-    command: -config.file=/etc/loki/local-config.yaml
-    depends_on:
-      - promtail
-    networks:
-      - logsense
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+    loki:
+        image: grafana/loki:2.9.0
+        ports:
+            - "3100:3100"
+        volumes:
+            - ./test/loki.config.yml:/etc/loki/local-config.yaml
+        command: -config.file=/etc/loki/local-config.yaml
+        depends_on:
+            - promtail
+        networks:
+            - logsense
+        deploy:
+            restart_policy:
+                condition: on-failure
+                delay: 5s
+                max_attempts: 50
+                window: 120s
 
-  loki-kafka:
-    build:
-      context: loki-kafka
-      dockerfile: Dockerfile
-    volumes:
-      - ./loki-kafka:/app
-    depends_on:
-      - kafka
-      - loki
-    environment:
-      - KAFKA_BROKER_URI=kafka:9092
-      - LOKI_ENDPOINT=ws://loki:3100
-    networks:
-      - logsense
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 10
-        window: 120s
+    loki-kafka:
+        build:
+            context: loki-kafka
+            dockerfile: Dockerfile
+        volumes:
+            - ./loki-kafka:/app
+        depends_on:
+            - kafka
+            - loki
+        environment:
+            - KAFKA_BROKER_URI=kafka:9092
+            - LOKI_ENDPOINT=ws://loki:3100
+        networks:
+            - logsense
+        deploy:
+            restart_policy:
+                condition: on-failure
+                delay: 10s
+                max_attempts: 50
+                window: 120s
 
-  grafana:
-    depends_on:
-      - loki
-    logging:
-      driver: none
-    environment:
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-    entrypoint:
-      - sh
-      - -euc
-      - |
-        mkdir -p /etc/grafana/provisioning/datasources
-        cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
-        apiVersion: 1
-        datasources:
-        - name: Loki
-          type: loki
-          orgId: 1
-          url: http://loki:3100
-          basicAuth: false
-          isDefault: true
-          version: 1
-          editable: false
-        EOF
-        /run.sh
-    image: grafana/grafana:latest
-    ports:
-      - "3005:3000"
-    networks:
-      - logsense
+    grafana:
+        depends_on:
+            - loki
+        logging:
+            driver: none
+        environment:
+            - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+            - GF_AUTH_ANONYMOUS_ENABLED=true
+            - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+        entrypoint:
+            - sh
+            - -euc
+            - |
+                mkdir -p /etc/grafana/provisioning/datasources
+                cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
+                apiVersion: 1
+                datasources:
+                - name: Loki
+                  type: loki
+                  orgId: 1
+                  url: http://loki:3100
+                  basicAuth: false
+                  isDefault: true
+                  version: 1
+                  editable: false
+                EOF
+                /run.sh
+        image: grafana/grafana:latest
+        ports:
+            - "3005:3000"
+        networks:
+            - logsense
 
-  flink:
-    build:
-      context: flink
-      dockerfile: Dockerfile
-    volumes:
-      - ./flink:/app
-    depends_on:
-      - client
-      - loki-kafka
-    environment:
-      - LOGSENSE_BACKEND_URI=http://client:3000
-      - KAFKA_URI=kafka:9092
-    networks:
-      - logsense
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
+    flink:
+        build:
+            context: flink
+            dockerfile: Dockerfile
+        volumes:
+            - ./flink:/app
+        depends_on:
+            - client
+            - loki-kafka
+        environment:
+            - LOGSENSE_BACKEND_URI=http://client:3000
+            - KAFKA_URI=kafka:9092
+        networks:
+            - logsense
+        deploy:
+            restart_policy:
+                condition: on-failure
+                delay: 5s
+                max_attempts: 50
+                window: 120s
 
-  train:
-    build:
-      context: model
-      dockerfile: Dockerfile.train
-    volumes:
-      - ./model:/app
-    networks:
-      - logsense
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    environment:
-      - MONGO_HOST=mongodb
-    depends_on:
-      - mongodb
+    minio:
+        image: quay.io/minio/minio:RELEASE.2024-04-18T19-09-19Z
+        command: server --console-address ":9001" /data
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        expose:
+            - "9000"
+            - "9001"
+        # environment:
+        # MINIO_ROOT_USER: minioadmin
+        # MINIO_ROOT_PASSWORD: minioadmin
+        healthcheck:
+            test: ["CMD", "mc", "ready", "local"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
 
-  inference_gpt:
-    build:
-      context: model
-      dockerfile: Dockerfile.inference
-    volumes:
-      - ./model:/app
-    networks:
-      - logsense
-    environment:
-      - LOGSENSE_BACKEND_URI=http://client:3000
-      - KAFKA_URI=kafka:9092
-      - QDRANT_HOST=qdrant
-      - MODEL=gpt
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-    depends_on:
-      - qdrant
-      - client
-      - kafka
-      - flink
+        hostname: minio
+        volumes:
+            - ./test/models:/data
+        networks:
+            - logsense
 
-  inference_rapid:
-    build:
-      context: model
-      dockerfile: Dockerfile.inference
-    volumes:
-      - ./model:/app
-    networks:
-      - logsense
-    environment:
-      - LOGSENSE_BACKEND_URI=http://client:3000
-      - KAFKA_URI=kafka:9092
-      - QDRANT_HOST=qdrant
-      - MODEL=rapid
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-    depends_on:
-      - qdrant
-      - client
-      - kafka
-      - flink
+    tensorboard:
+        image: tensorflow/tensorflow:latest
+        command: tensorboard --logdir=/runs --bind_all
+        ports:
+            - "6006:6006"
+        volumes:
+            - /test/tensorboard/:/runs/
+        networks:
+            - logsense
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-    volumes:
-      - ./test/qdrant_storage:/data
-    networks:
-      - logsense
+    train:
+        build:
+            context: model
+            dockerfile: Dockerfile.train
+        volumes:
+            - ./model:/app
+            - ./test/tensorboard/:/runs/
+        networks:
+            - logsense
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: 1
+                          capabilities: [gpu]
+            restart_policy:
+                condition: on-failure
+                delay: 5s
+                max_attempts: 50
+                window: 120s
+        environment:
+            - MONGO_HOST=mongodb
+            - KAFKA_URI=kafka:9092
+            - LOGSENSE_BACKEND_URI=http://client:3000
+            - CACHE_PATH=/cache
+            - MINIO_URI=minio:9000
+            - MINIO_ACCESS_KEY=nAssP0Cv85WFHeDnnrSA
+            - MINIO_SECRET_KEY=l82OPFnM8VzSkPQjImj4HWx0PJ3hLem1mf1o51Ms
+        depends_on:
+            - mongodb
+            - client
+            - minio
+            - tensorboard
+
+    inference_gpt:
+        build:
+            context: model
+            dockerfile: Dockerfile.inference
+        volumes:
+            - ./model:/app
+        networks:
+            - logsense
+        environment:
+            - LOGSENSE_BACKEND_URI=http://client:3000
+            - KAFKA_URI=kafka:9092
+            - QDRANT_HOST=qdrant
+            - MINIO_URI=minio:9000
+            - MODEL=gpt
+            - CACHE_PATH=/cache
+            - MINIO_ACCESS_KEY=nAssP0Cv85WFHeDnnrSA
+            - MINIO_SECRET_KEY=l82OPFnM8VzSkPQjImj4HWx0PJ3hLem1mf1o51Ms
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: 1
+                          capabilities: [gpu]
+            restart_policy:
+                condition: on-failure
+                delay: 5s
+                max_attempts: 50
+                window: 120s
+        depends_on:
+            - minio
+            - qdrant
+            - client
+            - kafka
+            - flink
+
+    inference_rapid:
+        build:
+            context: model
+            dockerfile: Dockerfile.inference
+        volumes:
+            - ./model:/app
+        networks:
+            - logsense
+        environment:
+            - LOGSENSE_BACKEND_URI=http://client:3000
+            - KAFKA_URI=kafka:9092
+            - QDRANT_HOST=qdrant
+            - MODEL=rapid
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          count: 1
+                          capabilities: [gpu]
+            restart_policy:
+                condition: on-failure
+                delay: 5s
+                max_attempts: 50
+                window: 120s
+        depends_on:
+            - qdrant
+            - client
+            - kafka
+            - flink
+
+    qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+            - "6333:6333"
+        volumes:
+            - ./test/qdrant_storage:/data
+        networks:
+            - logsense

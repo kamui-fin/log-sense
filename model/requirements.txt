@@ -7,3 +7,4 @@ tqdm
 dataclasses-json
 pymongo
 schedule
+minio

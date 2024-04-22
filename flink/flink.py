@@ -247,20 +247,38 @@ watermark_strategy = (
     .with_timestamp_assigner(LogTimestampAssigner())
 )
 
-source = (
+log_gpt_source = (
     KafkaSource.builder()
     .set_bootstrap_servers(KAFKA_URI)
     .set_topics("loki")
-    .set_group_id("flink")
+    .set_group_id("flink-loggpt")
     .set_starting_offsets(KafkaOffsetsInitializer.latest())
     .set_value_only_deserializer(JSONDeserializationSchema())
     .build()
 )
-kafka_stream = env.from_source(source, watermark_strategy, "flink-loggpt")
+log_gpt_source = env.from_source(log_gpt_source, watermark_strategy, "flink-loggpt")
+
+rapid_source = (
+    KafkaSource.builder()
+    .set_bootstrap_servers(KAFKA_URI)
+    .set_topics("loki")
+    .set_group_id("flink-rapid")
+    .set_starting_offsets(KafkaOffsetsInitializer.latest())
+    .set_value_only_deserializer(JSONDeserializationSchema())
+    .build()
+)
+rapid_source = env.from_source(rapid_source, watermark_strategy, "flink-rapid")
+
+
+def deserialize(value):
+    try:
+        return json.loads(value)
+    except:
+        return None
 
 
 rapid_stream = (
-    kafka_stream.map(lambda x: json.loads(x))
+    rapid_source.flat_map(deserialize)
     .map(RegexTokenize())
     .map(lambda x: json.dumps(x), Types.STRING())
 )
@@ -286,7 +304,7 @@ else:
     window_size_sec = int(args[1])
 
 log_gpt_stream = (
-    kafka_stream.map(lambda x: json.loads(x))
+    log_gpt_source.flat_map(deserialize)
     .key_by(lambda log_data: log_data["service"], key_type=Types.STRING())
     .map(TrainModeProcessor())
     .map(TraceExtractor())
