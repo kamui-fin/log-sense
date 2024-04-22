@@ -3,6 +3,8 @@ import z from "zod";
 import { ServiceCardProps } from "../ServiceCard";
 import { useForm, zodResolver } from "@mantine/form";
 import { FormEventHandler } from "react";
+import { trpc } from "../../../../utils/trpc";
+
 
 /*
     top-k -- number
@@ -35,7 +37,6 @@ const updateGPTSchema = z.object({
 export const GPTTab = ({
     service,
     onGoBack,
-    onSubmitTab,
 }: ServiceCardProps) => {
     const {
         top_k,
@@ -64,14 +65,24 @@ export const GPTTab = ({
         validate: zodResolver(updateGPTSchema),
     });
 
-    const submitToTop: FormEventHandler = (e) => {
-        e.preventDefault();
-        onSubmitTab(form.getValues());
+    const utils = trpc.useUtils();
+    const { mutate: updateService } = trpc.services.updateService.useMutation({
+        onSuccess() {
+            utils.services.getServices.invalidate();
+        },
+    });
+
+    const submitGPT: FormEventHandler = (values) => {
+        updateService({
+            params: { id: service._id, type: "SERVICE" },
+            body: values,
+        });
+        onGoBack();
     };
 
     return (
         <div className="grid grid-cols-3 gap-6">
-            <form onSubmit={submitToTop}>
+            <form onSubmit={form.onSubmit((values) => submitGPT(values))}>
                 <NumberInput
                     label="Top-K"
                     description="K-value used when evaluating Top-K during LogGPT finetuning"

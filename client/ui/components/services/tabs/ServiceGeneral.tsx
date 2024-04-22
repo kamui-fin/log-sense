@@ -21,11 +21,9 @@ const updateGeneralSchema = z.object({
     name: z.string(),
     description: z.string(),
     is_train: z.boolean(),
-    threshold: z.number().optional(),
-    coreset_size: z.number().optional(),
 });
 
-export const GeneralTab = ({ service, onSubmitTab }: ServiceCardProps) => {
+export const GeneralTab = ({ service, onGoBack }: ServiceCardProps) => {
     const { name, description, is_train } = service;
 
     const form = useForm<UpdateGeneralInput>({
@@ -37,15 +35,27 @@ export const GeneralTab = ({ service, onSubmitTab }: ServiceCardProps) => {
         validate: zodResolver(updateGeneralSchema),
     });
 
-    const submitToTop: FormEventHandler = (e) => {
-        e.preventDefault();
-        onSubmitTab(form.getValues());
+    const utils = trpc.useUtils();
+    const { mutate: updateService } = trpc.services.updateService.useMutation({
+            onSuccess() {
+                utils.services.getServices.invalidate();
+            },
+        });
+
+    const submitGeneral: FormEventHandler = (values) => {
+        updateService({
+            params: { id: service._id, type: "SERVICE" },
+            body: values,
+        });
+        onGoBack();
     };
+
+    
 
     return (
         <div>
             <div className="grid grid-cols-3 gap-6 mb-4">
-                <form onSubmit={submitToTop}>
+                <form onSubmit={form.onSubmit((values) => submitGeneral(values))}>
                     <TextInput
                         label="Name"
                         mt="md"

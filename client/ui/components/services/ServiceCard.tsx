@@ -51,7 +51,7 @@ interface Service {
 export interface ServiceCardProps {
     service: Service;
     onConfigClick: any;
-    onSubmitTab: any;
+    onGoBack: any;
 }
 
 const updateServiceSchema = z.object({

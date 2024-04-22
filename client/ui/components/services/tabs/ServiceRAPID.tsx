@@ -3,6 +3,8 @@ import { ServiceCardProps } from "../ServiceCard";
 import { useForm, zodResolver } from "@mantine/form";
 import { z } from "zod";
 import { FormEventHandler } from "react";
+import { trpc } from "../../../../utils/trpc";
+
 
 type UpdateRAPIDInput = z.TypeOf<typeof updateRAPIDSchema>;
 
@@ -11,7 +13,7 @@ const updateRAPIDSchema = z.object({
     coreset_size: z.number().optional(),
 });
 
-export const RAPIDTab = ({ service, onSubmitTab }: ServiceCardProps) => {
+export const RAPIDTab = ({ service, onGoBack }: ServiceCardProps) => {
     const { coreset_size, threshold } = service;
 
     const form = useForm<UpdateRAPIDInput>({
@@ -22,15 +24,24 @@ export const RAPIDTab = ({ service, onSubmitTab }: ServiceCardProps) => {
         validate: zodResolver(updateRAPIDSchema),
     });
 
-    const submitToTop: FormEventHandler = (e) => {
-        e.preventDefault();
-        console.log(service);
-        onSubmitTab(form.getValues());
+    const utils = trpc.useUtils();
+    const { mutate: updateService } = trpc.services.updateService.useMutation({
+        onSuccess() {
+            utils.services.getServices.invalidate();
+        },
+    });
+
+    const submitRAPID: FormEventHandler = (values) => {
+        updateService({
+            params: { id: service._id, type: "SERVICE" },
+            body: values,
+        });
+        onGoBack();
     };
 
     return (
         <div className="grid grid-cols-3 gap-6">
-            <form onSubmit={submitToTop}>
+            <form onSubmit={form.onSubmit((values) => submitRAPID(values))}>
                 <NumberInput
                     label="Coreset Size"
                     description="Number of neighbors to use for RAPID"
