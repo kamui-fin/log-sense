@@ -8,6 +8,11 @@ from torch.utils.data import Dataset
 
 LOGSENSE_BACKEND_URI = os.getenv("LOGSENSE_BACKEND_URI", "http://localhost:3000")
 
+@dataclass_json
+@dataclass
+class RegexSub:
+    pattern: str
+    replacement: str
 
 @dataclass_json
 @dataclass
@@ -30,6 +35,7 @@ class ServiceConfig:
     vocab_size: int
 
     trace_regex: Optional[str] = ""
+    regex_subs: List[RegexSub] = []
 
 
 @dataclass_json
@@ -97,7 +103,7 @@ class ChunkDataset(Dataset):
 
 def get_config() -> GlobalConfig:
     response = requests.get(
-        f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getServices"
+        f"{LOGSENSE_BACKEND_URI}/api/trpc/services.getServices"
     ).json()
     service_list = response["result"]["data"]["json"]["data"]
     configs = {}

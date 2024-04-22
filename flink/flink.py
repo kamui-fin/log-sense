@@ -134,7 +134,7 @@ class LogAggregator(AggregateFunction):
 
 def get_config() -> GlobalConfig:
     response = requests.get(
-        f"{LOGSENSE_BACKEND_URI}/api/trpc/config.getServices"
+        f"{LOGSENSE_BACKEND_URI}/api/trpc/services.getServices"
     ).json()
     service_list = response["result"]["data"]["json"]["data"]
     configs = {}
@@ -219,7 +219,7 @@ class RegexTokenize(MapFunction):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
     def map(self, log_data):
-        clean_log = regex_clean(log_data["original_text"])
+        clean_log = regex_clean(log_data["original_text"], config.configs[log_data['service']].regex_subs)
         sha256_hash = hashlib.sha256(clean_log.encode("utf-8")).digest()
         hash_log = str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         tokens = self.tokenizer(

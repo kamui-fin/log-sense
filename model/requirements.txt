@@ -8,3 +8,4 @@ dataclasses-json
 pymongo
 schedule
 minio
+tensorboard

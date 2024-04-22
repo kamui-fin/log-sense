@@ -15,7 +15,7 @@ services:
         environment:
             - MONGODB_URI=mongodb://mongodb:27017/log_sense
             - KAFKA_BROKER_URI=kafka:9092
-            - GRAFANA_URI=http://grafana:3000
+            - NEXT_PUBLIC_GRAFANA_URI=http://grafana:3000
         depends_on:
             - mongodb
             - kafka
