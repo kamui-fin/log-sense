@@ -2,8 +2,8 @@ import { NumberInput, Button } from "@mantine/core";
 import { ServiceCardProps } from "../ServiceCard";
 import { useForm, zodResolver } from "@mantine/form";
 import { z } from "zod";
-import { FormEventHandler } from "react";
 import { trpc } from "../../../../utils/trpc";
+import { Service } from "../ServiceCard";
 
 type UpdateRAPIDInput = z.TypeOf<typeof updateRAPIDSchema>;
 
@@ -12,8 +12,13 @@ const updateRAPIDSchema = z.object({
     coreset_size: z.number().optional(),
 });
 
-export const RAPIDTab = ({ service, onGoBack }: ServiceCardProps) => {
+interface RapidTabProps {
+    service:Service,
+}
+
+export const RAPIDTab = ({ service }: RapidTabProps) => {
     const { coreset_size, threshold } = service;
+    const minCoreSetSize = 1;
 
     const form = useForm<UpdateRAPIDInput>({
         initialValues: {
@@ -45,6 +50,7 @@ export const RAPIDTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="Number of neighbors to use for RAPID"
                     placeholder="2"
                     mt="md"
+                    min={minCoreSetSize}
                     {...form.getInputProps("coreset_size")}
                 />
                 <NumberInput

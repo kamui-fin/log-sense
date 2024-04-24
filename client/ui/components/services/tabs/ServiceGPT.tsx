@@ -2,8 +2,9 @@ import { NumberInput, Switch, Button, TextInput } from "@mantine/core";
 import z from "zod";
 import { ServiceCardProps } from "../ServiceCard";
 import { useForm, zodResolver } from "@mantine/form";
-import { FormEventHandler } from "react";
 import { trpc } from "../../../../utils/trpc";
+import { useState } from "react";
+import {Service} from '../ServiceCard'
 
 /*
     top-k -- number
@@ -34,7 +35,21 @@ const updateGPTSchema = z.object({
     trace_regex: z.string().optional(),
 });
 
-export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
+interface GPTProps {
+    service: Service
+}
+
+export const GPTTab = ({ service }: GPTProps) => {
+    const minK = 1;
+    const minPretrain = 1000;
+    const minVocab = 1;
+    const lrStep = .0001;
+    const minBatchSize = 1;
+    const minEpisodes = 1;
+    const minEpochs = 1;
+
+    const [enable_trace, setEnableTrace] = useState(service.enable_trace)
+
     const {
         top_k,
         max_pretrain,
@@ -44,9 +59,13 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
         train_batch_size,
         num_episodes,
         num_epochs,
-        enable_trace,
         trace_regex,
     } = service;
+
+    const changeTraceEnabled = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const currTrace = enable_trace
+        setEnableTrace(!currTrace)
+    } 
 
     const form = useForm<UpdateGPTInput>({
         initialValues: {
@@ -72,6 +91,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
     });
 
     const submitGPT = (values: UpdateGPTInput) => {
+        values.enable_trace = enable_trace;
         updateService({
             params: { id: service._id },
             body: values,
@@ -89,6 +109,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="K-value during Top-K evaluation"
                     placeholder="2"
                     mt="md"
+                    min={minK}
                     {...form.getInputProps("top_k")}
                 />
                 <NumberInput
@@ -96,6 +117,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="# of log lines to pretrain before switching to finetuning"
                     placeholder="2"
                     mt="md"
+                    min={minPretrain}
                     {...form.getInputProps("max_pretrain")}
                 />
                 <NumberInput
@@ -103,6 +125,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="Number of unique, cleaned log lines to expect"
                     placeholder="2"
                     mt="md"
+                    min={minVocab}
                     {...form.getInputProps("vocab_size")}
                 />
 
@@ -111,6 +134,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="Learning Rate for Pretraining"
                     placeholder="2"
                     mt="md"
+                    step={lrStep}
                     {...form.getInputProps("lr_pretraining")}
                 />
                 <NumberInput
@@ -118,6 +142,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="Learning Rate for Finetuning"
                     placeholder="2"
                     mt="md"
+                    step={lrStep}
                     {...form.getInputProps("lr_finetuning")}
                 />
                 <NumberInput
@@ -125,6 +150,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="Number of log lines sent to GPU per batch"
                     placeholder="2"
                     mt="md"
+                    min={minBatchSize}
                     {...form.getInputProps("train_batch_size")}
                 />
                 <NumberInput
@@ -132,6 +158,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="Number of Episodes using during Pretraining and Finetuning"
                     placeholder="2"
                     mt="md"
+                    min={minEpisodes}
                     {...form.getInputProps("num_episodes")}
                 />
                 <NumberInput
@@ -139,6 +166,7 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     description="Number of Epochs using during Pretraining and Finetuning"
                     placeholder="2"
                     mt="md"
+                    min={minEpochs}
                     {...form.getInputProps("num_epochs")}
                 />
                 <Switch
@@ -147,8 +175,9 @@ export const GPTTab = ({ service, onGoBack }: ServiceCardProps) => {
                     size="md"
                     mt="xs"
                     // mb="md"
-                    defaultChecked={enable_trace}
-                    {...form.getInputProps("enable_trace")}
+                    checked={enable_trace}
+                    onChange={(event) => changeTraceEnabled(event)}
+                    // {...form.getInputProps("enable_trace")}
                 />
                 <TextInput
                         label="Trace Regex"

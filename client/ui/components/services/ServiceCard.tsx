@@ -28,7 +28,7 @@ import { trpc } from "../../../utils/trpc";
 import { z } from "zod";
 import { Update } from "next/dist/build/swc";
 
-interface Service {
+export interface Service {
     _id: string;
     name: string;
     description: string;
@@ -46,6 +46,7 @@ interface Service {
     num_episodes: number;
     num_epochs: number;
     vocab_size: number;
+    regex_subs: {pattern:string, replacement:string}[]
 }
 
 export interface ServiceCardProps {
