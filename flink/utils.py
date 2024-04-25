@@ -25,5 +25,5 @@ class JSONDeserializationSchema(SimpleStringSchema):
 # currently only hardcoded
 def regex_clean(line, regex_subs: List[RegexSub]):
     for regex_sub in regex_subs:
-        line = re.sub(regex_sub.pattern, regex_sub.replacement, line)
+        line = re.sub(regex_sub['pattern'], regex_sub['replacement'], line)
     return line

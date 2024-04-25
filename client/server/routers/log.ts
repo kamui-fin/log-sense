@@ -64,6 +64,7 @@ export const rapidToUnified = (rapidLog: RapidLog): UnionAnomalousLog => {
 };
 
 export const logGptToUnified = (window: GptLogPrediction) => {
+    console.log(window);
     const text = window.original_logs
         .map((log) => log.original_text)
         .join("\n");

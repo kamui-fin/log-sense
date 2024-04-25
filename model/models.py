@@ -34,8 +34,8 @@ class ServiceConfig:
     num_epochs: int
     vocab_size: int
 
+    regex_subs: List[RegexSub]
     trace_regex: Optional[str] = ""
-    regex_subs: List[RegexSub] = []
 
 
 @dataclass_json

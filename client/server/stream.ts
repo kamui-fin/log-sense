@@ -21,6 +21,10 @@ export const createKafka = () => {
     const kafka = new Kafka({
         clientId: CLIENT_ID,
         brokers: [KAFKA_BROKER_HOST],
+        retry: {
+            retries: 100,
+            initialRetryTime: 10000,
+        },
     });
     return kafka;
 };
@@ -47,7 +51,8 @@ export const initKafkaListener = async () => {
             heartbeat,
             pause,
         }) => {
-            if (message.value === null) return;
+            if (message.value === null || message.value.toString() === "")
+                return;
             const logPrediction: BaseLogPrediction = JSON.parse(
                 message.value.toString()
             );
@@ -60,15 +65,14 @@ export const initKafkaListener = async () => {
                 console.log(`Anomaly detected: ${prediction.cleaned_text}`);
                 const newLog = new RapidLogModel({ ...prediction });
                 const savedLog = await newLog.save();
-                console.log(savedLog);
-                unifiedNewLog = rapidToUnified(savedLog);
+                unifiedNewLog = rapidToUnified(savedLog._doc);
             } else if (logPrediction.type === "log_gpt") {
                 const newLog = new GptLogModel(
                     JSON.parse(message.value.toString())
                 );
                 const savedLog = await newLog.save();
                 unifiedNewLog = logGptToUnified({
-                    ...savedLog,
+                    ...savedLog._doc,
                     _id: savedLog._id.toString(),
                     type: "log_gpt",
                 });

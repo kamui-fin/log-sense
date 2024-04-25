@@ -69,7 +69,7 @@ def listen_inference_rapid():
             event = RapidLogEvent.from_dict(message.value)
             service = event.service
             inferencer = inferencers[service]
-            logging.info(f"Received log: {event}")
+            # logging.info(f"Received log: {event}")
             if message.topic == "mark-normal":
                 inferencer.mark_normal(event)
                 continue
@@ -122,6 +122,7 @@ def listen_inference_gpt():
         auto_offset_reset="latest",
         enable_auto_commit=True,
         value_deserializer=deserializer,
+        max_partition_fetch_bytes=5242880,
     )
     MINIO_URI = os.getenv("MINIO_URI", "localhost:9000")
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", None)
@@ -159,7 +160,7 @@ def listen_inference_gpt():
             log_batch: LogSequenceEvent = LogSequenceEvent.from_dict(message.value)
             svc = log_batch.original_logs[0][0].service
             num_test_samples = len(log_batch.hashes)
-            logging.info(f"Received batch: {log_batch}")
+            # logging.info(f"Received batch: {log_batch}")
 
             inferencer = inferencers[svc]
             is_train = config.configs[svc].is_train

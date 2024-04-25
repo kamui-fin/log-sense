@@ -91,6 +91,7 @@ class LogAggregator(AggregateFunction):
         accumulator["hashes"].append(
             str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         )
+        accumulator["num_logs"] = len(accumulator["current_logs"])
 
     def drain_parse(self, log_line):
         return self.template_miner.add_log_message(log_line)["cluster_id"]
@@ -99,7 +100,9 @@ class LogAggregator(AggregateFunction):
         if self.context_size is None:
             self.context_size = config.configs[log_data["service"]].context_size
 
-        clean_log = regex_clean(log_data["original_text"])
+        clean_log = regex_clean(
+            log_data["original_text"], config.configs[log_data["service"]].regex_subs
+        )
         sha256_hash = hashlib.sha256(clean_log.encode("utf-8")).digest()
         log_hash = str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         template_id = self.drain_parse(clean_log) + num_special_tokens
@@ -219,7 +222,9 @@ class RegexTokenize(MapFunction):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
     def map(self, log_data):
-        clean_log = regex_clean(log_data["original_text"], config.configs[log_data['service']].regex_subs)
+        clean_log = regex_clean(
+            log_data["original_text"], config.configs[log_data["service"]].regex_subs
+        )
         sha256_hash = hashlib.sha256(clean_log.encode("utf-8")).digest()
         hash_log = str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         tokens = self.tokenizer(
@@ -243,7 +248,7 @@ env.add_jars(
 
 watermark_strategy = (
     WatermarkStrategy.for_bounded_out_of_orderness(Duration.of_seconds(1))
-    .with_idleness(Duration.of_millis(500))
+    .with_idleness(Duration.of_seconds(5))
     .with_timestamp_assigner(LogTimestampAssigner())
 )
 
@@ -252,8 +257,8 @@ log_gpt_source = (
     .set_bootstrap_servers(KAFKA_URI)
     .set_topics("loki")
     .set_group_id("flink-loggpt")
-    .set_starting_offsets(KafkaOffsetsInitializer.latest())
     .set_value_only_deserializer(JSONDeserializationSchema())
+    .set_starting_offsets(KafkaOffsetsInitializer.latest())
     .build()
 )
 log_gpt_source = env.from_source(log_gpt_source, watermark_strategy, "flink-loggpt")
@@ -278,7 +283,7 @@ def deserialize(value):
 
 
 rapid_stream = (
-    rapid_source.flat_map(deserialize)
+    rapid_source.map(deserialize)
     .map(RegexTokenize())
     .map(lambda x: json.dumps(x), Types.STRING())
 )
@@ -292,6 +297,7 @@ rapid_sink = (
         .build()
     )
     .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+    .set_property("max.request.size", "5242880")
     .build()
 )
 rapid_stream.sink_to(rapid_sink)
@@ -299,12 +305,12 @@ rapid_stream.sink_to(rapid_sink)
 # get tumbling window seconds from argparse
 args = sys.argv
 if len(args) < 2:
-    window_size_sec = 60
+    window_size_sec = 5
 else:
     window_size_sec = int(args[1])
 
 log_gpt_stream = (
-    log_gpt_source.flat_map(deserialize)
+    log_gpt_source.map(deserialize)
     .key_by(lambda log_data: log_data["service"], key_type=Types.STRING())
     .map(TrainModeProcessor())
     .map(TraceExtractor())
@@ -323,6 +329,7 @@ log_gpt_sink = (
         .build()
     )
     .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE)
+    .set_property("max.request.size", "5242880")
     .build()
 )
 log_gpt_stream.sink_to(log_gpt_sink)
