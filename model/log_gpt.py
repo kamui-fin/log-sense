@@ -11,16 +11,6 @@ from torch.distributions import Categorical
 
 from models import ServiceConfig
 
-# defaults
-# top_k = 80
-# context_size = 256
-# lr_pretraining = 1e-4
-# lr_finetuning = 1e-6
-# batch_size = 16
-# num_episodes = 10
-# num_epochs = 10
-# vocab_size = 195
-
 embed_dim = 60
 layers = 6
 heads = 6
@@ -53,7 +43,7 @@ class LogGPTInferenceAPI:
         self.config = config
 
     def run_inference(self, val_dataloader):
-        print("Beginning evaluation...")
+        logging.info("Beginning evaluation...")
         self.model.eval()
         predictions = []
         with torch.no_grad():
@@ -98,7 +88,7 @@ class LogGPTInferenceAPI:
         self.load_model(self.model_output_path)
 
     def pretrain_model(self, train_dataloader, writer):
-        print("Beginning model pre-training...")
+        logging.info("Beginning model pre-training...")
         self.model.train()
         for epoch in tqdm(range(self.config.num_epochs), desc="Epoch: "):
             train_loss = 0
@@ -113,16 +103,17 @@ class LogGPTInferenceAPI:
 
             train_loss /= len(train_dataloader)
             writer.add_scalar("Loss/train", train_loss, epoch)
-            print(
+            logging.info(
                 f"Epoch {epoch+1}/{self.config.num_epochs}, Training Loss: {train_loss / len(batch)}"
             )
 
-            print("Saving model...")
+            logging.info("Saving model...")
             self.save_model(self.model_output_path)
 
     ### NOTE: save_model() and load_model() are called in completely different nodes during deployment
 
     def save_model(self, saved_model_path):
+        logging.info(f"Saving model to {saved_model_path}")
         state = {
             "state_dict": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
@@ -136,18 +127,26 @@ class LogGPTInferenceAPI:
             logging.error("Failed to upload model to minio")
 
     def fetch_new_weights(self):
-        self.load_model(None)  # empty cache means force pull from minio
+        logging.info("Fetching new weights")
+        self.load_model(
+            self.model_output_path, force_reload=True
+        )  # empty cache means force pull from minio
 
-    def load_model(self, saved_model_path):
-        if not saved_model_path or not saved_model_path.exists():
+    def load_model(self, saved_model_path, force_reload=False):
+        if force_reload or not saved_model_path.exists():
             # download the model from minio bucket
+            logging.info(
+                f"Downloading model from minio because {saved_model_path} did not exist"
+            )
             try:
                 self.minio_client.fget_object(
                     "models", self.model_name, saved_model_path
                 )
-            except:
-                # no such model existing, return
+            except Exception as e:
+                print(e, flush=True)
+                logging.info("No such model found in minio")
                 return
+        logging.info(f"Loading from cache: {saved_model_path}")
         saved_model = torch.load(saved_model_path)
         self.model.load_state_dict(saved_model["state_dict"], strict=False)
         self.optimizer.load_state_dict(saved_model["optimizer"])
@@ -189,7 +188,7 @@ class LogGPTInferenceAPI:
         return loss
 
     def finetune(self, train_set, writer):
-        print("Beginning model finetuning...")
+        logging.info("Beginning model finetuning...")
         last_episode_loss = 0
         count = 0
         best_loss = float("inf")
@@ -205,18 +204,18 @@ class LogGPTInferenceAPI:
             train_loss /= len(finetune_trainset)
 
             writer.add_scalar("Loss/finetune", train_loss, episode)
-            print(
+            logging.info(
                 f"Episode {episode}/{self.config.num_episodes} (finetune): {train_loss}"
             )
             if last_episode_loss - train_loss <= loss_improv_epsilon:
-                print(f"Loss barely changed {last_episode_loss} to {train_loss}")
+                logging.warn(f"Loss barely changed {last_episode_loss} to {train_loss}")
                 count += 1
             if count > 3:
-                print("Early stop!")
+                logging.warn("Early stop!")
                 break
 
             if train_loss < best_loss or episode == 0:
-                print("New best model! Saving...")
+                logging.info("New best model! Saving...")
                 self.save_model(self.model_output_path)
                 best_loss = train_loss
 

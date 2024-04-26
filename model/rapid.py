@@ -89,7 +89,6 @@ class RapidInferenceAPI:
         logging.info("Scoring log..")
         embedding = self.get_sentence_embedding(log)[0]
         logging.info(f"Generating coreset..")
-        print(self.config.configs[self.service].coreset_size)
         core_set = self.client.search(
             collection_name=self.normal_collection_name,
             query_vector=embedding[0].numpy(),

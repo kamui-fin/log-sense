@@ -212,7 +212,7 @@ services:
         ports:
             - "6006:6006"
         volumes:
-            - /test/tensorboard/:/runs/
+            - ./test/tensorboard/:/runs/
         networks:
             - logsense
 

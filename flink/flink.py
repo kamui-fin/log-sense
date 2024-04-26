@@ -38,6 +38,9 @@ import requests
 import hashlib
 from models import GlobalConfig, ServiceConfig
 from utils import JSONDeserializationSchema, LogTimestampAssigner, regex_clean
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 num_special_tokens = 3
 bos_token_id = 0
@@ -121,7 +124,9 @@ class LogAggregator(AggregateFunction):
         return accumulator
 
     def get_result(self, accumulator):
-        print("FINISHED RESULT: get_result()")
+        logging.info(
+            f"Flushing accumulator with {len(accumulator['original_logs'])} logs..."
+        )
         if accumulator["current_logs"]:
             self.add_current_chunk(accumulator)
         return {

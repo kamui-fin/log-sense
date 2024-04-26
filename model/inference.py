@@ -69,7 +69,6 @@ def listen_inference_rapid():
             event = RapidLogEvent.from_dict(message.value)
             service = event.service
             inferencer = inferencers[service]
-            # logging.info(f"Received log: {event}")
             if message.topic == "mark-normal":
                 inferencer.mark_normal(event)
                 continue
@@ -160,7 +159,6 @@ def listen_inference_gpt():
             log_batch: LogSequenceEvent = LogSequenceEvent.from_dict(message.value)
             svc = log_batch.original_logs[0][0].service
             num_test_samples = len(log_batch.hashes)
-            # logging.info(f"Received batch: {log_batch}")
 
             inferencer = inferencers[svc]
             is_train = config.configs[svc].is_train
@@ -184,6 +182,7 @@ def listen_inference_gpt():
                                 "type": "log_gpt",
                                 "is_anomaly": status,
                                 "chunk": log_batch.chunks[i].to_dict(),
+                                "service": log_batch.original_logs[i][0].service,
                                 "original_logs": [
                                     l.to_dict() for l in log_batch.original_logs[i]
                                 ],

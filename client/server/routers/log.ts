@@ -16,6 +16,7 @@ export interface GptLogPrediction {
     type: "log_gpt";
     is_anomaly: boolean;
     chunk: LogGptChunk;
+    service: string; // copy of the service in the first log
     original_logs: RapidLog[];
 }
 
@@ -64,11 +65,10 @@ export const rapidToUnified = (rapidLog: RapidLog): UnionAnomalousLog => {
 };
 
 export const logGptToUnified = (window: GptLogPrediction) => {
-    console.log(window);
     const text = window.original_logs
         .map((log) => log.original_text)
         .join("\n");
-    const service = window.original_logs[0].service;
+    const service = window.service;
     const nodes = Array.from(
         new Set(window.original_logs.map((log) => log.node))
     );
@@ -114,8 +114,6 @@ const getLogsController = async () => {
                 { _id: 1, original_logs: 1 }
             ).sort({ timestamp: -1 })
         ).map((log) => ({ ...log.toObject(), type: "log_gpt" }));
-
-        console.log(gptLogs, rapidLogs);
 
         const rapidOriginalLogs = rapidLogs.map(rapidToUnified);
         const gptOriginalLogs = gptLogs.flatMap(logGptToUnified);
@@ -181,7 +179,6 @@ const confirmAnomalyController = async (
     try {
         let updateResult;
         if (type === "log_gpt") {
-            console.log(_id);
             updateResult = await GptLogModel.updateOne(
                 { _id },
                 { prompt_user: false }
@@ -231,10 +228,8 @@ export const logRouter = router({
             markNormalController(input._id, input.type, ctx.kafkaProducer)
         ),
     onAdd: publicProcedure.subscription(() => {
-        console.log("Requesting subscription");
         return observable<UnionAnomalousLog>((emit) => {
             const onAdd = (data: UnionAnomalousLog) => {
-                console.log(data);
                 emit.next(data);
             };
             eventEmitter.on("add", onAdd);

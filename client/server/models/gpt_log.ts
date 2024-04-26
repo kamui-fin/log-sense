@@ -29,6 +29,9 @@ class GptLog {
 
     @prop({ required: false, type: Boolean, default: true })
     prompt_user!: boolean;
+
+    @prop({ required: true, type: String })
+    service!: string;
 }
 
 const GptLogModel = getModelForClass(GptLog);

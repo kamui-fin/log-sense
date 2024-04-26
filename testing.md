@@ -1,10 +1,7 @@
-- LogGPT Minio model training, updates, and loading. Test on a small amount of data first, then on full BGL.
-  - Might need to introduce manual trigger functionality, even if debug-only
-  - Check if Tensorboard is recording train progress
-- RAPID train mode, volume handling. Train up a BGL and see how it performs
-    - Switch off logs while testing for throughput
+- Train with HDFS tracing setup
+- Train on BGL
 - Inference tests on both models. Make sure it lines up with expected F1 scores
 - Check if UI-side grafana contextualization still works
-- Test for fault-tolerance by killing kafka, mongo, minio etc
-- Make sure the hyperparameter config is actually being applied properly
 - With pre-initialized models, test from promtail sources. Try to get a convincing demo out of this
+
+- Test for fault-tolerance by killing kafka, mongo, minio etc

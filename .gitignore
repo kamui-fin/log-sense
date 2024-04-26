@@ -9,7 +9,6 @@ ssh.log
 
 qdrant_storage/
 wal/
-loki*
 *.log
 
 test/

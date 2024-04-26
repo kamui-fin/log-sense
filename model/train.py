@@ -15,6 +15,8 @@ import logging
 from torch.utils.tensorboard import SummaryWriter
 import os
 
+logging.basicConfig(level=logging.INFO)
+
 MONGO_HOST = os.getenv("MONGO_HOST", "localhost")
 MONGO_PORT = os.getenv("MONGO_PORT", 27017)
 
@@ -55,12 +57,11 @@ def task():
     collection = db.gptlogs
     pipeline = [
         # {"$match": {"is_anomaly": False}},
-        {"$unwind": "$original_logs"},
         {
             "$group": {
                 "_id": {
                     "train_strategy": "$train_strategy",
-                    "service": "$original_logs.service",
+                    "service": "$service",
                 },
                 "chunks": {"$push": "$chunk"},
             }
@@ -82,13 +83,15 @@ def task():
         return
 
     config = get_config()
-    print(config.configs)
+    logging.info("Using config: ", config.to_dict())
     # pre-train
     pre_train_chunks = chunks_by_strat["pre-train"]
+    logging.info(f"Pre-training {len(pre_train_chunks)} chunks")
     begin_pretraining(pre_train_chunks, config)
 
     # fine-tune
     fine_tune_chunks = chunks_by_strat["finetune"]
+    logging.info(f"Fine-tuning {len(fine_tune_chunks)} chunks")
     begin_finetuning(fine_tune_chunks, config)
 
     producer.flush()
@@ -97,36 +100,39 @@ def task():
 
 def begin_pretraining(chunks_grouped, config: GlobalConfig):
     for service, chunks in chunks_grouped.items():
+        logging.info("Pretraining for service:", service)
         train_loader = DataLoader(ChunkDataset(chunks), batch_size=2, shuffle=True)
         model = LogGPTInferenceAPI(
             service, config.configs[service], cache_path, minio_client
         )
         model.pretrain_model(train_loader, writer)
 
-    producer.send("model-update", value={"msg": "NEW_MODEL_PRETRAINED"})
+    producer.send("model-update", value="NEW_MODEL_PRETRAINED".encode())
 
 
 def begin_finetuning(sequences_grouped, config):
     for service, seqs in sequences_grouped.items():
+        logging.info("Fine-tuning for service:", service)
         sequences = torch.tensor([chunk["input_ids"] for chunk in seqs], device=device)
         model = LogGPTInferenceAPI(
             service, config.configs[service], cache_path, minio_client
         )
         model.finetune(sequences, writer)
+        model.save_model()
 
-    producer.send("model-update", value={"msg": "NEW_MODEL_FINETUNED"})
+    producer.send("model-update", value="NEW_MODEL_FINETUNED".encode())
 
 
 # Schedule the task to run every day at 12 am
 schedule.every().day.at("00:00").do(task)
 
-task()
-producer.close()
+# task()
+# producer.close()
 
-# try:
-#     while True:
-#         schedule.run_pending()
-#         time.sleep(1)
-# except:
-#     producer.close()
-#     writer.close()
+try:
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+except:
+    producer.close()
+    writer.close()

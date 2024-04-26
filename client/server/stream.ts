@@ -67,9 +67,11 @@ export const initKafkaListener = async () => {
                 const savedLog = await newLog.save();
                 unifiedNewLog = rapidToUnified(savedLog._doc);
             } else if (logPrediction.type === "log_gpt") {
-                const newLog = new GptLogModel(
-                    JSON.parse(message.value.toString())
-                );
+                const newLogJson = JSON.parse(message.value.toString());
+                const newLog = new GptLogModel({
+                    ...newLogJson,
+                    service: newLogJson.original_logs[0].service,
+                });
                 const savedLog = await newLog.save();
                 unifiedNewLog = logGptToUnified({
                     ...savedLog._doc,

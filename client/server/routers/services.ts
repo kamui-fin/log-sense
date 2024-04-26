@@ -107,7 +107,6 @@ const updateServiceController = async ({
     input: UpdateServiceInput["body"];
     ctx: Context;
 }) => {
-    console.log(ctx);
     try {
         const updatedService = await ServiceModel.updateOne(
             { _id: paramsInput.id },

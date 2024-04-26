@@ -14,7 +14,6 @@ export default function Home() {
 
     trpc.log.onAdd.useSubscription(undefined, {
         onData(log) {
-            console.log(log);
             utils.log.getAll.invalidate();
         },
     });
