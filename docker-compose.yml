@@ -15,7 +15,7 @@ services:
         environment:
             - MONGODB_URI=mongodb://mongodb:27017/log_sense
             - KAFKA_BROKER_URI=kafka:9092
-            - NEXT_PUBLIC_GRAFANA_URI=http://grafana:3000
+            - NEXT_PUBLIC_GRAFANA_URI=http://localhost:3005
         depends_on:
             - mongodb
             - kafka
@@ -243,8 +243,8 @@ services:
             - LOGSENSE_BACKEND_URI=http://client:3000
             - CACHE_PATH=/cache
             - MINIO_URI=minio:9000
-            - MINIO_ACCESS_KEY=nAssP0Cv85WFHeDnnrSA
-            - MINIO_SECRET_KEY=l82OPFnM8VzSkPQjImj4HWx0PJ3hLem1mf1o51Ms
+            - MINIO_ACCESS_KEY=access_key # CHANGE
+            - MINIO_SECRET_KEY=secret_key # CHANGE
         depends_on:
             - mongodb
             - client

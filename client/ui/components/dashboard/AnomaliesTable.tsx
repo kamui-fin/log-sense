@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Inter } from "next/font/google";
 import { NavbarSimple } from "../nav/NavbarSimple";
-import { Button, Code, Table } from "@mantine/core";
+import { Button, Code, Table, stylesToString } from "@mantine/core";
 import { Layout } from "../../Layout";
 import path from "path";
 import { trpc } from "../../../utils/trpc";
@@ -16,29 +16,30 @@ interface AnomaliesTableProps {
 }
 
 const dateFromUnix = (timestamp: number) => {
-    const date = new Date(Number.parseInt(String(timestamp).slice(0, 13)));
+    const date = new Date(0);
+    date.setUTCSeconds(Number.parseInt(String(timestamp)));
     return date.toLocaleString();
 };
 
 const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
-    const queryClient = useQueryClient();
+    const utils = trpc.useUtils();
     const { mutate: markNormal } = trpc.log.markNormal.useMutation({
         onSuccess() {
-            queryClient.invalidateQueries({ queryKey: ["getLogs"] });
+            utils.log.getAll.invalidate();
         },
     });
     const { mutate: confirmAnomaly } = trpc.log.confirmAnomaly.useMutation({
         onSuccess() {
-            queryClient.invalidateQueries({ queryKey: ["getLogs"] });
+            utils.log.getAll.invalidate();
         },
     });
 
     const minusTimeRange = (timestamp: number, duration: Duration) => {
-        return timestamp - duration.as("milliseconds");
+        return (timestamp - duration.as("seconds")) * 1000;
     };
 
     const plusTimeRange = (timestamp: number, duration: Duration) => {
-        return timestamp + duration.as("milliseconds");
+        return (timestamp + duration.as("seconds")) * 1000;
     };
 
     const panes = {
@@ -59,13 +60,10 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
                     legendFormat: "",
                 },
             ],
-            // TODO: Make context configurable
             range: {
                 from: String(
                     minusTimeRange(
-                        Number.parseInt(
-                            log.startTimestamp.toString().slice(0, 13)
-                        ),
+                        log.startTimestamp,
                         Duration.fromObject({
                             minutes: Number.parseInt(
                                 localStorage.getItem(
@@ -77,9 +75,7 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
                 ),
                 to: String(
                     plusTimeRange(
-                        Number.parseInt(
-                            log.endTimestamp.toString().slice(0, 13)
-                        ),
+                        log.endTimestamp,
                         Duration.fromObject({
                             minutes: Number.parseInt(
                                 localStorage.getItem(
@@ -108,7 +104,16 @@ const AnomalyRow = ({ log }: { log: UnionAnomalousLog }) => {
             <Table.Td>{path.basename(log.uniqueFilenames[0])}</Table.Td>
             <Table.Td>{dateFromUnix(log.endTimestamp)}</Table.Td>
             <Table.Td>
-                <Code>{log.text}</Code>
+                <Code
+                    block={true}
+                    style={{
+                        maxWidth: "800px",
+                    }}
+                >
+                    {log.text.length > 800
+                        ? log.text.slice(0, 800) + "..."
+                        : log.text}
+                </Code>
             </Table.Td>
             <Table.Td>
                 <Button

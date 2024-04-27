@@ -26,7 +26,6 @@ class RapidInferenceAPI:
         self.model = BertModel.from_pretrained("bert-base-uncased").to(device)
 
         self.normal_collection_name = f"normal-{self.service}"
-        self.normal_collection_name = f"normal"  # TODO: TEMP
         self.init_qdrant()
 
     def reload_config(self, config: GlobalConfig):
@@ -138,7 +137,7 @@ class RapidInferenceAPI:
 
     def mark_normal(self, test_log: RapidLogEvent):
         point = self.get_embedding_test(test_log)
-        self.client.upsert(collection_name="normal", points=[point])
+        self.client.upsert(collection_name=self.normal_collection_name, points=[point])
 
     # Entrypoint
     def run_inference(self, test_log: RapidLogEvent):
@@ -149,7 +148,9 @@ class RapidInferenceAPI:
         point = self.get_embedding_test(test_log)
         if self.config.configs[self.service].is_train:
             logging.info("Adding to normal db..")
-            self.client.upsert(collection_name="normal", points=[point])
+            self.client.upsert(
+                collection_name=self.normal_collection_name, points=[point]
+            )
             return
 
         score = self.get_score(test_log)
@@ -162,7 +163,7 @@ class RapidInferenceAPI:
         if not is_anomaly:
             logging.info("Adding to normal db..")
             self.client.upsert(
-                collection_name="normal", points=[point]
+                collection_name=self.normal_collection_name, points=[point]
             )  # NOTE: will exist in both test and normal collection (optimize later?)
 
         return score.item(), is_anomaly.item()

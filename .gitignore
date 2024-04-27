@@ -8,11 +8,5 @@ drain3_state.bin
 ssh.log
 
 qdrant_storage/
-wal/
-*.log
-
-test/
-
 .vscode
-
 *.pt

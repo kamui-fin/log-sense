@@ -43,9 +43,6 @@ class Service {
     @prop({ type: Number, default: 10_000 })
     max_pretrain!: number;
 
-    @prop({ type: Number, default: 512 })
-    context_size!: number;
-
     @prop({ type: Number, default: 1e-4 })
     lr_pretraining!: number;
 

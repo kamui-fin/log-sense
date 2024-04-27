@@ -8,11 +8,13 @@ from torch.utils.data import Dataset
 
 LOGSENSE_BACKEND_URI = os.getenv("LOGSENSE_BACKEND_URI", "http://localhost:3000")
 
+
 @dataclass_json
 @dataclass
 class RegexSub:
     pattern: str
     replacement: str
+
 
 @dataclass_json
 @dataclass
@@ -26,7 +28,6 @@ class ServiceConfig:
     # log-gpt
     top_k: int
     max_pretrain: int
-    context_size: int
     lr_pretraining: float
     lr_finetuning: float
     train_batch_size: int

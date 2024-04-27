@@ -11,6 +11,7 @@ from torch.distributions import Categorical
 
 from models import ServiceConfig
 
+context_size = 512
 embed_dim = 60
 layers = 6
 heads = 6
@@ -77,7 +78,7 @@ class LogGPTInferenceAPI:
             n_head=heads,
             n_embd=embed_dim,
             vocab_size=vocab_size + 1,  # for padding token
-            n_positions=self.config.context_size,
+            n_positions=context_size,
             bos_token_id=bos_token_id,
             eos_token_id=eos_token_id,
             pad_token_id=pad_token_id,

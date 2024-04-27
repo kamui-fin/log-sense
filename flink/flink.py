@@ -28,6 +28,7 @@ from pyflink.datastream import (
     AggregateFunction,
 )
 from pyflink.datastream.window import TumblingEventTimeWindows
+from pyflink.common import Configuration
 from drain3.file_persistence import FilePersistence
 from drain3.template_miner import TemplateMiner
 from pyflink.datastream.state import (
@@ -41,6 +42,8 @@ from utils import JSONDeserializationSchema, LogTimestampAssigner, regex_clean
 import logging
 
 logging.basicConfig(level=logging.INFO)
+
+GPT_CONTEXT_SIZE = 512
 
 num_special_tokens = 3
 bos_token_id = 0
@@ -56,7 +59,7 @@ class LogAggregator(AggregateFunction):
         persistence = FilePersistence("/tmp/drain3_state.bin")
         self.template_miner = TemplateMiner(persistence_handler=persistence)
 
-        self.context_size = None
+        self.context_size = GPT_CONTEXT_SIZE
 
     def create_accumulator(self):
         return {
@@ -95,14 +98,13 @@ class LogAggregator(AggregateFunction):
             str(int.from_bytes(sha256_hash[:8], byteorder="big"))
         )
         accumulator["num_logs"] = len(accumulator["current_logs"])
+        logging.info(f"Added chunk with {len(accumulator['current_logs'])} logs.")
+        logging.info(f'Number of chunks: {len(accumulator["chunks"])}')
 
     def drain_parse(self, log_line):
         return self.template_miner.add_log_message(log_line)["cluster_id"]
 
     def add(self, log_data, accumulator):
-        if self.context_size is None:
-            self.context_size = config.configs[log_data["service"]].context_size
-
         clean_log = regex_clean(
             log_data["original_text"], config.configs[log_data["service"]].regex_subs
         )
@@ -263,7 +265,7 @@ log_gpt_source = (
     .set_topics("loki")
     .set_group_id("flink-loggpt")
     .set_value_only_deserializer(JSONDeserializationSchema())
-    .set_starting_offsets(KafkaOffsetsInitializer.latest())
+    .set_starting_offsets(KafkaOffsetsInitializer.earliest())
     .build()
 )
 log_gpt_source = env.from_source(log_gpt_source, watermark_strategy, "flink-loggpt")
@@ -302,7 +304,7 @@ rapid_sink = (
         .build()
     )
     .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE)
-    .set_property("max.request.size", "5242880")
+    .set_property("max.request.size", "10242880")
     .build()
 )
 rapid_stream.sink_to(rapid_sink)
@@ -320,7 +322,8 @@ log_gpt_stream = (
     .map(TrainModeProcessor())
     .map(TraceExtractor())
     .key_by(trace_node_selector, key_type=Types.STRING())
-    .window(TumblingEventTimeWindows.of(Time.seconds(window_size_sec)))
+    # .window(TumblingEventTimeWindows.of(Time.seconds(window_size_sec)))
+    .count_window(GPT_CONTEXT_SIZE)
     .aggregate(LogAggregator())
     .map(lambda x: json.dumps(x), Types.STRING())
 )
@@ -334,7 +337,7 @@ log_gpt_sink = (
         .build()
     )
     .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE)
-    .set_property("max.request.size", "5242880")
+    .set_property("max.request.size", "10242880")
     .build()
 )
 log_gpt_stream.sink_to(log_gpt_sink)

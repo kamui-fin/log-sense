@@ -1,28 +1,58 @@
 # LogSense
 
-With this product, our goal is to leverage an ensemble of state-of-the-art LLM-based log anomaly detection models in streamlining an architecture capable of real-time anomaly detection.
+LogSense leverages an ensemble of state-of-the-art LLM-based log anomaly detection models in streamlining an architecture capable of real-time anomaly detection. Learn more through our [whitepaper]('http://clovlog.com/logsense.pdf').
+
+![](./Distributed%20Architecture.png)
+
+## Installation
+
+LogSense's development environment can be started with Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+Quick notes:
+
+-   If running without Cuda, remove the GPU-related sections from `docker-compose.yml`.
+-   Add in the minio credentials for the `train` micro-service.
+
+## Testing
+
+The `docker-compose.yml` file mainly serves as a way to test out LogSense locally. Given the example loki & promtail config files, you can stream in log lines into `./test/input_logs/service1.log`, serving as the input to the entire system.
+
+Be sure to configure `service1` and `service2` in the frontend at [`http://localhost:3000`](`http://localhost:3000`).
+
+## Production
+
+Due to the variability in use cases, LogSense offers a highly flexible architecture that can be tailored to one's own needs. In particular, we advise users to create their own Kubernetes configurations for production that suite their requirements.
+
+Aditionally, we invite users to contribute to our repository and reach out to us about their own use cases. We wish to build an open-source community centered around deploying production log-anomaly detection systems and hope that LogSense can be the starting point.
+
+Feel free to submit any bug reports, pull requests, or potential ideas!
+
+## Backlog
+
+-   Model explanability through anomalous token visualization. The idea is we highlight tokens that caused the model to classify it as anomalous by creating a new metrics based on top-k and max-sim ideas.
+-   Dynamic thresholding algorithm for RAPID.
+-   Further expansion of dashboard.
+
+## Condensed Project Report
 
 LogSense can be broken down into 3 parts:
 
 1. Stream Processing
-
 2. Real-time Inferencing
-
 3. HITL (Human-in-the-loop) Updating
+
+In an ideal world, humans would go through logs as they come in and quickly respond to anomalies they detect. It would be like standing on a shore and picking up any sea shells (anomalies) as the waves of logs come at you. Unfortunately, current system logs resemble less of a peaceful wave brushing your feet and more of a relentless tsunami mercilessly crashing into you. Dealing with this tsunami requires effective use of our more powerful weapon -- computing.
+
+Traditionally, algorithms such as PCA, Decision Trees, and SVMs [3] defined boundaries or. common patterns the logs had to follow, but the emergence of language encoders shifted the discussion away from traditional rule definition towards NLP. Specifically, the effectiveness of BERT and GPT prompted log anomaly detection algorithms to leverage their power in encoding a log line.
 
 We selected 2 models as the focus of our study:
 
 1. RAPID - Retrieval-oriented (train-free) [2]
-
-2. LogGPT - GPT based w/ reinforcement learning [3]
-
-Our motivation for combining these models into an ensemble is rooted in the primary difference between them -- semantics.
-
-## Background
-
-In an ideal world, humans would go through logs as they come in and quickly respond to anomalies they detect. It would be like standing on a shore and picking up any sea shells (anomalies) as the waves of logs come at you. Unfortunately, current system logs resemble less of a peaceful wave brushing your feet and more of a relentless tsunami mercilessly crashing into you. Dealing with this tsunami requires effective use of our more powerful weapon -- computing. 
-
-Traditionally, algorithms such as PCA, Decision Trees, and SVMs [3] defined boundaries or. common patterns the logs had to follow, but the emergence of language encoders shifted the discussion away from traditional rule definition towards NLP. Specifically, the effectiveness of BERT and GPT prompted log anomaly detection algorithms to leverage their power in encoding a log line.
+2. LogGPT - GPT based with reinforcement learning [3]
 
 Subsequently, two schools of thought emerged when deciding how to encode logs -- tokenising and parsing [3]. Tokenising, which RAPID follows, is the process of regexing a log line and immediately encoding it. Regex preprocessing is the process of replacing any specifics in the log lines that are irrelevant to the inference process with general tokens such as NUM for numbers or IP for ip addresses. In contrast, LogGPT employs the parsing method. Given a sequence of log lines, LogGPT uses the Drain parser [5] to define unique log templates, also known as log keys, and assign each one to a log line in the sequence. This sequence of log keys is then encoded using a language model, such as GPT, in order to perform inference.
 
@@ -66,15 +96,11 @@ LogSense's front-end allows users to not only understand their logs, but interac
 
 Although LogSense provides a usable platform for a majority of users, there remain questions regarding its implementation:
 
-- Can the theoretical tandem of RAPID and LogGPT prove effective in real world settings?
+-   Can the theoretical tandem of RAPID and LogGPT prove effective in real world settings?
 
-- How can a dynamic threshold be implemented to let RAPID make better decisions as time goes on?
+-   How can a dynamic threshold be implemented to let RAPID make better decisions as time goes on?
 
-- How can we guard against false negatives?
-
-## Long Term
-
-In the future, this study could introduce a brand new metric to test the viability of log anomaly detection systems in an online, distributed environment.
+-   How can we guard against false negatives?
 
 # Citations
 

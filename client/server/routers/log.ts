@@ -111,7 +111,7 @@ const getLogsController = async () => {
                     is_anomaly: true,
                     prompt_user: true,
                 },
-                { _id: 1, original_logs: 1 }
+                { _id: 1, hash: 1, service: 1, original_logs: 1 }
             ).sort({ timestamp: -1 })
         ).map((log) => ({ ...log.toObject(), type: "log_gpt" }));
 

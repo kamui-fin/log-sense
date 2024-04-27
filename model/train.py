@@ -126,9 +126,6 @@ def begin_finetuning(sequences_grouped, config):
 # Schedule the task to run every day at 12 am
 schedule.every().day.at("00:00").do(task)
 
-# task()
-# producer.close()
-
 try:
     while True:
         schedule.run_pending()

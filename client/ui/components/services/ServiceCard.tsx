@@ -39,14 +39,13 @@ export interface Service {
     trace_regex: string;
     top_k: number;
     max_pretrain: number;
-    context_size: number;
     lr_pretraining: number;
     lr_finetuning: number;
     train_batch_size: number;
     num_episodes: number;
     num_epochs: number;
     vocab_size: number;
-    regex_subs: {pattern:string, replacement:string}[]
+    regex_subs: { pattern: string; replacement: string }[];
 }
 
 export interface ServiceCardProps {

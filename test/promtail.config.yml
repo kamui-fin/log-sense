@@ -1,0 +1,32 @@
+## Example promtail config for testing logsense
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+# In
+scrape_configs:
+  - job_name: system-v1
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service: service1
+          node: node_a
+          filename: service1.log
+          __path__: /var/log/service1.log
+  - job_name: system-v2
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          service: service2
+          node: node_b
+          filename: service2.log
+          __path__: /var/log/service2.log

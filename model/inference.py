@@ -28,7 +28,7 @@ from rapid import RapidInferenceAPI
 KAFKA_URI = os.getenv("KAFKA_URI", "localhost:9092")
 producer = KafkaProducer(bootstrap_servers=KAFKA_URI)
 
-logging.basicConfig(level=logging.INFO)  # TODO: replicate in all other microservices
+logging.basicConfig(level=logging.INFO)
 
 
 def deserializer(msg):
@@ -66,7 +66,11 @@ def listen_inference_rapid():
         elif message.value.get("invalid"):
             continue
         else:
-            event = RapidLogEvent.from_dict(message.value)
+            try:
+                event = RapidLogEvent.from_dict(message.value)
+            except:
+                logging.error(f"Invalid log event {message.value}")
+                continue
             service = event.service
             inferencer = inferencers[service]
             if message.topic == "mark-normal":
@@ -121,7 +125,7 @@ def listen_inference_gpt():
         auto_offset_reset="latest",
         enable_auto_commit=True,
         value_deserializer=deserializer,
-        max_partition_fetch_bytes=5242880,
+        max_partition_fetch_bytes=10242880,
     )
     MINIO_URI = os.getenv("MINIO_URI", "localhost:9000")
     MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", None)
@@ -156,7 +160,11 @@ def listen_inference_gpt():
         elif message.value.get("invalid"):
             continue
         else:
-            log_batch: LogSequenceEvent = LogSequenceEvent.from_dict(message.value)
+            try:
+                log_batch: LogSequenceEvent = LogSequenceEvent.from_dict(message.value)
+            except:
+                logging.error(f"Invalid log event {message.value}")
+                continue
             svc = log_batch.original_logs[0][0].service
             num_test_samples = len(log_batch.hashes)
 
@@ -169,7 +177,7 @@ def listen_inference_gpt():
                     shuffle=True,
                 )
                 is_anomaly = inferencer.run_inference(data_loader)
-                logging.info("Generated predictions!", is_anomaly)
+                logging.info(f"Generated predictions! {is_anomaly}")
 
             for i in range(num_test_samples):
                 if is_train or is_anomaly[i]:

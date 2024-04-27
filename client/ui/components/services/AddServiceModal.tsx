@@ -21,7 +21,6 @@ const createServiceSchema = z.object({
     trace_regex: z.string().optional(),
     top_k: z.number().default(80),
     max_pretrain: z.number().default(10_000),
-    context_size: z.number().default(512),
     lr_pretraining: z.number().default(1e-4),
     lr_finetuning: z.number().default(1e-6),
     train_batch_size: z.number().default(16),
