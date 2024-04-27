@@ -1,6 +1,6 @@
 # LogSense
 
-LogSense leverages an ensemble of state-of-the-art LLM-based log anomaly detection models in streamlining an architecture capable of real-time anomaly detection. Learn more through our [whitepaper]('http://clovlog.com/logsense.pdf').
+LogSense leverages an ensemble of state-of-the-art LLM-based log anomaly detection models in streamlining an architecture capable of real-time anomaly detection. Learn more through our [whitepaper](http://clovlog.com/logsense.pdf).
 
 ![](./Distributed%20Architecture.png)
 
@@ -21,7 +21,7 @@ Quick notes:
 
 The `docker-compose.yml` file mainly serves as a way to test out LogSense locally. Given the example loki & promtail config files, you can stream in log lines into `./test/input_logs/service1.log`, serving as the input to the entire system.
 
-Be sure to configure `service1` and `service2` in the frontend at [`http://localhost:3000`](`http://localhost:3000`).
+Be sure to configure `service1` and `service2` in the frontend at [`http://localhost:3000`](http://localhost:3000).
 
 ## Production
 
